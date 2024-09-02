@@ -5,7 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class CallCenter extends Model
+/**
+ * @property mixed $custId
+ * @property mixed $textMessage
+ * @property mixed $typeMessage
+ */
+class chatHistory extends Model
 {
     use HasFactory;
     protected $connection = 'call_center_database';
