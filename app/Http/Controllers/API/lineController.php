@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\ConnectionException;
 use Pusher\Pusher;
+use Illuminate\Support\Facades\Storage;
 
 class lineController extends Controller
 {
@@ -71,7 +72,25 @@ class lineController extends Controller
                 $chatHistory->content = $text;
             } elseif ($type == 'image') {
                 $imageId = $events[0]['message']['id'] ?? '';
-                $chatHistory->content = 'https://api-data.line.me/v2/bot/message/'.$imageId.'/content/preview';
+                $url = "https://api-data.line.me/v2/bot/message/$imageId/content";
+                $client = new \GuzzleHttp\Client();
+                $response = $client->request('GET', $url, [
+                    'headers' => [
+                        'Authorization' => 'Bearer ' . env('CHANNEL_ACCESS_TOKEN')
+                    ],
+                ]);
+                $imageContent = $response->getBody()->getContents();
+                $contentType = $response->getHeader('Content-Type')[0];
+                $extension = match ($contentType) {
+                    'image/jpeg' => '.jpg',
+                    'image/png' => '.png',
+                    'image/gif' => '.gif',
+                    default => '.bin',
+                };
+                $imagePath = 'line-images/' . $imageId . $extension ;
+                Storage::disk('public')->put($imagePath, $imageContent);
+                $chatHistory->content = 'http://localhost:8001/storage/'.$imagePath;
+
             } elseif ($type == 'sticker') {
                 $stickerId = $events[0]['message']['stickerId'] ?? '';
                 $chatHistory->content = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/'.$stickerId.'/iPhone/sticker.png';
