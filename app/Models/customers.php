@@ -19,5 +19,5 @@ class customers extends Model
     use HasFactory;
     protected $connection = 'call_center_database';
     protected $table = 'customers';
-    protected $fillable = ['custId','name','platform','description','avatar','online','roomId'];
+    protected $fillable = ['custId','name','platform','description','avatar','online','roomId','userReply'];
 }

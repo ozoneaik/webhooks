@@ -56,6 +56,7 @@ class lineController extends Controller
                 $customer->description = $profile['statusMessage'] ?? '';
                 $customer->roomId = 0;
                 $customer->online = true;
+                $customer->userReply = 'admin';
                 $customer->save();
             } else {
                 $customer = $checkCustomer;
