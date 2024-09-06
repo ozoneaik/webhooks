@@ -54,7 +54,7 @@ class lineController extends Controller
                 $customer->avatar = $profile['pictureUrl'] ?? null;
                 $customer->platform = 'line';
                 $customer->description = $profile['statusMessage'] ?? '';
-                $customer->roomId = 1;
+                $customer->roomId = 0;
                 $customer->online = true;
                 $customer->save();
             } else {
