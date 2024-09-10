@@ -21,7 +21,7 @@ class lineController extends Controller
         $events = $res["events"] ?? [];
 
         if (empty($events)) {
-            return response()->json(['error' => 'No events found'], 400);
+            return response()->json(['message' => 'No events found'], 200);
         }
 
         if (empty($events[0]['source']['userId'])) {
@@ -90,7 +90,11 @@ class lineController extends Controller
                 };
                 $imagePath = 'line-images/' . $imageId . $extension ;
                 Storage::disk('public')->put($imagePath, $imageContent);
-                $chatHistory->content = 'http://localhost:8001/storage/'.$imagePath;
+//                $chatHistory->content = 'http://localhost:8001/storage/'.$imagePath;
+//                $chatHistory->content = Storage::url($imagePath);
+                $chatHistory->content = asset('storage/'.$imagePath);
+
+
 
             } elseif ($type == 'sticker') {
                 $stickerId = $events[0]['message']['stickerId'] ?? '';
