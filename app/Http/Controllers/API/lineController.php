@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\chatHistory;
 use App\Models\customers;
+use GuzzleHttp\Client;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +75,7 @@ class lineController extends Controller
             } elseif ($type == 'image') {
                 $imageId = $events[0]['message']['id'] ?? '';
                 $url = "https://api-data.line.me/v2/bot/message/$imageId/content";
-                $client = new \GuzzleHttp\Client();
+                $client = new Client();
                 $response = $client->request('GET', $url, [
                     'headers' => [
                         'Authorization' => 'Bearer ' . env('CHANNEL_ACCESS_TOKEN')
@@ -90,12 +91,7 @@ class lineController extends Controller
                 };
                 $imagePath = 'line-images/' . $imageId . $extension ;
                 Storage::disk('public')->put($imagePath, $imageContent);
-//                $chatHistory->content = 'http://localhost:8001/storage/'.$imagePath;
-//                $chatHistory->content = Storage::url($imagePath);
                 $chatHistory->content = asset('storage/'.$imagePath);
-
-
-
             } elseif ($type == 'sticker') {
                 $stickerId = $events[0]['message']['stickerId'] ?? '';
                 $chatHistory->content = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/'.$stickerId.'/iPhone/sticker.png';
