@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property mixed $textMessage
  * @property mixed $typeMessage
  * @property mixed $sender
+ * @property mixed|string $contentType
+ * @property mixed|string $content
  * @method static select(Expression $raw)
  * @method static where(string $string, mixed $custId)
  */

@@ -12,6 +12,6 @@ Route::post('/line/webhook' ,[lineController::class,'lineWebHook']);
 
 Route::get('/test' ,function(){
     return response()->json([
-        'message' => 'helelo'
+        'message' => 'hello world'
     ]);
 });

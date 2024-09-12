@@ -12,6 +12,11 @@ use Illuminate\Database\Eloquent\Model;
  * @property mixed|string $platform
  * @property mixed $description
  * @property int|mixed $groupId
+ * @property mixed|null $avatar
+ * @property int|mixed $roomId
+ * @property mixed|true $online
+ * @property mixed|string $userReply
+ * @method static where(string $string, mixed $userId)
  */
 
 class customers extends Model
