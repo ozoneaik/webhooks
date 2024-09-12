@@ -1,118 +1,149 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\chatHistory;
 use App\Models\customers;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Pusher\ApiErrorException;
 use Pusher\Pusher;
+use Pusher\PusherException;
 
-class LineService{
-    public function create($custId,$profile) : array{
-        $data['status'] = false;
-        $data['message'] = 'เกิดข้อผิดพลาด';
-        try {
-            $create = new customers();
-            $create->custId = $custId;
-            $create->name = $profile['displayName'] ?? 'Unknown';
-            $create->avatar = $profile['pictureUrl'] ?? null;
-            $create->platform = 'line';
-            $create->description = $profile['statusMessage'] ?? '';
-            $create->roomId = 0;
-            $create->online = true;
-            $create->userReply = 'admin';
-            $create->save();
-            $data['message'] = 'สำเร็จ';
-            $data['status'] = true;
-            $data['create'] = $create;
-        }catch (\Exception $exception){
-            $data['create'] = null;
-            $data['message'] = $exception->getMessage();
-
-        }
-        return $data;
-    }
-
-    public function checkCust($custId) : array{
-        $data['status'] = false;
-        $data['message'] = 'เกิดข้อผิดพลาด';
-        try {
-            $checkCustomer = customers::where('custId', $custId)->where('platform', 'line')->first();
-            if ($checkCustomer) {
-                $data['message'] = 'สำเร็จ';
-                $data['status'] = true;
-                $data['customer'] = $checkCustomer;
-               }
-        }catch (\Exception $exception){
-            $data['customer'] = null;
-            $data['message'] = $exception->getMessage();
-        }
-        return $data;
-    }
-
-    public function storeChat($custId,$event,$customer): array
+class LineService
+{
+    public function create($custId, $profile): array
     {
-        $data['status'] = false;
-        $data['message'] = 'เกิดข้อผิดพลาด';
+        try {
+            $customer = customers::create([
+                'custId' => $custId,
+                'name' => $profile['displayName'] ?? 'Unknown',
+                'avatar' => $profile['pictureUrl'] ?? null,
+                'platform' => 'line',
+                'description' => $profile['statusMessage'] ?? '',
+                'roomId' => 0,
+                'online' => true,
+                'userReply' => 'admin'
+            ]);
+            return [
+                'status' => true,
+                'message' => 'สำเร็จ',
+                'create' => $customer
+            ];
+        } catch (\Exception $exception) {
+            return [
+                'status' => false,
+                'message' => $exception->getMessage(),
+                'create' => null
+            ];
+        }
+    }
+
+    public function checkCust($custId): array
+    {
+        try {
+            $customer = customers::where('custId', $custId)->where('platform', 'line')->first();
+            return [
+                'status' => (bool)$customer,
+                'message' => $customer ? 'สำเร็จ' : 'ไม่พบลูกค้า',
+                'customer' => $customer
+            ];
+        } catch (\Exception $exception) {
+            return [
+                'status' => false,
+                'message' => $exception->getMessage(),
+                'customer' => null
+            ];
+        }
+    }
+
+    public function storeChat($custId, $event, $customer): array
+    {
         try {
             $type = $event['message']['type'] ?? 'unknown';
-            $chatHistory = new chatHistory();
-            $chatHistory->custId = $custId;
-            $chatHistory->contentType = $type;
-            $chatHistory->sender = json_encode($customer);
-            if ($type === 'text'){
-                $text = $event['message']['text'] ?? '';
-                $chatHistory->content = $text;
-            }elseif ($type === 'image'){
-                $imageId = $event['message']['id'] ?? '';
-                $url = "https://api-data.line.me/v2/bot/message/$imageId/content";
-                $client = new Client();$response = $client->request('GET', $url, [
-                    'headers' => ['Authorization' => 'Bearer ' . env('CHANNEL_ACCESS_TOKEN')],
-                ]);
-                $imageContent = $response->getBody()->getContents();
-                $contentType = $response->getHeader('Content-Type')[0];
-                $extension = match ($contentType) {
-                    'image/jpeg' => '.jpg',
-                    'image/png' => '.png',
-                    'image/gif' => '.gif',
-                    default => '.bin',
-                };
-                $imagePath = 'line-images/' . $imageId . $extension ;
-                Storage::disk('public')->put($imagePath, $imageContent);
-                $chatHistory->content = asset('storage/'.$imagePath);
-            }elseif ($type === 'sticker'){
-                $stickerId = $event['message']['stickerId'] ?? '';
-                $chatHistory->content = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/'.$stickerId.'/iPhone/sticker.png';
-            }else {
-                $chatHistory->content = 'Unsupported message type';
-            }
-            $chatHistory->save();
-            $options = [
-                'cluster' => env('PUSHER_APP_CLUSTER'),
-                'useTLS' => true
-            ];
-            $pusher = new Pusher(env('PUSHER_APP_KEY'), env('PUSHER_APP_SECRET'), env('PUSHER_APP_ID'), $options);
-            $chatId = 'chat.'.$custId;
-            $pusher->trigger($chatId, 'my-event', [
-                'message' => $event['message']['text'] ?? 'No message text'
+            $chatHistory = new chatHistory([
+                'custId' => $custId,
+                'contentType' => $type,
+                'sender' => json_encode($customer)
             ]);
-            $pusher->trigger('notifications', 'my-event', [
-                'message' => 'new message'
-            ]);
-            $data['$chatHistory'] = $chatHistory;
 
-        }catch (\Exception $e){
-            $data['message'] = $e->getMessage();
-            $data['$chatHistory'] = null;
-            return $data;
-        } catch (GuzzleException $e) {
-            $data['message'] = $e->getMessage();
-            $data['$chatHistory'] = null;
+            $chatHistory->content = match ($type) {
+                'text' => $event['message']['text'] ?? '',
+                'image' => $this->handleImage($event['message']['id'] ?? ''),
+                'sticker' => $this->getStickerUrl($event['message']['stickerId'] ?? ''),
+                default => 'Unsupported message type',
+            };
+
+            $chatHistory->save();
+            $customer = customers::where('custId', $custId)->where('platform', 'line')->first();
+            $this->triggerPusher($custId,$customer->name, $event['message']['text'] ?? 'ส่งรูป หรือ sticker');
+
+            return [
+                'status' => true,
+                'message' => 'Chat saved successfully',
+                'chatHistory' => $chatHistory
+            ];
+        } catch (\Exception|GuzzleException $e) {
+            return [
+                'status' => false,
+                'message' => $e->getMessage(),
+                'chatHistory' => null
+            ];
+        }
+    }
+
+    private function handleImage($imageId): string
+    {
+        if (!$imageId) {
+            return 'No image ID provided';
         }
 
-        return $data;
+        $url = "https://api-data.line.me/v2/bot/message/$imageId/content";
+        $client = new Client();
+        $response = $client->request('GET', $url, [
+            'headers' => ['Authorization' => 'Bearer ' . env('CHANNEL_ACCESS_TOKEN')],
+        ]);
 
+        $imageContent = $response->getBody()->getContents();
+        $contentType = $response->getHeader('Content-Type')[0];
+        $extension = match ($contentType) {
+            'image/jpeg' => '.jpg',
+            'image/png' => '.png',
+            'image/gif' => '.gif',
+            default => '.bin',
+        };
+
+        $imagePath = 'line-images/' . $imageId . $extension;
+        Storage::disk('public')->put($imagePath, $imageContent);
+
+        return asset('storage/' . $imagePath);
+    }
+
+    private function getStickerUrl($stickerId): string
+    {
+        return $stickerId ? 'https://stickershop.line-scdn.net/stickershop/v1/sticker/' . $stickerId . '/iPhone/sticker.png' : 'No sticker ID provided';
+    }
+
+    /**
+     * @throws PusherException
+     * @throws ApiErrorException
+     * @throws GuzzleException
+     */
+    private function triggerPusher($custId ,$custName, $message): void
+    {
+        $options = [
+            'cluster' => env('PUSHER_APP_CLUSTER'),
+            'useTLS' => true
+        ];
+
+        $pusher = new Pusher(env('PUSHER_APP_KEY'), env('PUSHER_APP_SECRET'), env('PUSHER_APP_ID'), $options);
+
+        $pusher->trigger('chat.' . $custId, 'my-event', ['message' => $message]);
+        $pusher->trigger('notifications', 'my-event', [
+            'message' => 'มีข้อความใหม่เข้ามา',
+            'custId' => $custName,
+            'content' => $message
+        ]);
     }
 }

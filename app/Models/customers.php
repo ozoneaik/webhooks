@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property mixed|true $online
  * @property mixed|string $userReply
  * @method static where(string $string, mixed $userId)
+ * @method static create(array $array)
  */
 
 class customers extends Model

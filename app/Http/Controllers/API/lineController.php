@@ -4,7 +4,6 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Services\LineService;
-use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,28 +21,29 @@ class lineController extends Controller
     {
         $res = $request->all();
         $events = $res["events"] ?? [];
-        if (empty($events)) {
-            return response()->json(['message' => 'No events found'], 200);
-        }
-        if (empty($events[0]['source']['userId'])) {
-            return response()->json(['error' => 'User ID not found'], 400);
+        if (empty($events) || empty($events[0]['source']['userId'])) {
+            return response()->json(['error' => 'Invalid events or user ID not found'], 400);
         }
         $userId = $events[0]['source']['userId'];
+        $accessToken = env('CHANNEL_ACCESS_TOKEN');
+        if (!$accessToken) {
+            return response()->json(['message' => 'Channel access token not set'], 500);
+        }
         $URL = "https://api.line.me/v2/bot/profile/".$userId;
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('CHANNEL_ACCESS_TOKEN')
+                'Authorization' => 'Bearer ' . $accessToken
             ])->get($URL);
             if ($response->failed()) {
-                Log::error('Failed to fetch profile', ['response' => $response->body()]);
-                return response()->json(['error' => 'Failed to fetch profile'], 500);
+                Log::error('Failed to fetch profile for user: ' . $userId, ['response' => $response->body()]);
+                return response()->json(['message' => 'Failed to fetch profile'], 500);
             }
             $profile = $response->json();
-            $checkCustomer = $this->lineService->checkCust($userId); // เช็คก่อนว่าเคยบันทึกผู้ใช้คนนี้หรือยัง
+            $checkCustomer = $this->lineService->checkCust($userId);
             if ($checkCustomer['status'] === false) {
-                $customer = $this->lineService->create($userId, $profile); // ถ้าไม่เจอให้ทำการสร้าง
+                $customer = $this->lineService->create($userId, $profile);
                 if ($customer['status'] === false) {
-                    throw new \Exception('Customer status is false');
+                    throw new \Exception('Failed to create customer for user: ' . $userId);
                 }
                 $customer = $customer['create'];
             } else {
@@ -51,11 +51,16 @@ class lineController extends Controller
             }
             $chatHistory = $this->lineService->storeChat($userId, $events[0], $customer);
             if ($chatHistory['status'] === false) {
-                throw new \Exception('ChatHistory status is false');
+                throw new \Exception('Failed to store chat history for user: ' . $userId);
             }
-        } catch (ConnectionException|\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
+        } catch (ConnectionException $e) {
+            Log::error('Connection error: ' . $e->getMessage());
+            return response()->json(['message' => 'Connection error'], 500);
+        } catch (\Exception $e) {
+            Log::error('General error: ' . $e->getMessage());
+            return response()->json(['message' => 'An error occurred'], 500);
         }
         return response()->json(['response' => 'Webhook processed successfully']);
     }
+
 }
