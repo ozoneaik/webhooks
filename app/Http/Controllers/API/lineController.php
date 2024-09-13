@@ -22,7 +22,7 @@ class lineController extends Controller
         $res = $request->all();
         $events = $res["events"] ?? [];
         if (empty($events) || empty($events[0]['source']['userId'])) {
-            return response()->json(['error' => 'Invalid events or user ID not found'], 400);
+            return response()->json(['error' => 'Invalid events or user ID not found'], 200);
         }
         $userId = $events[0]['source']['userId'];
         $accessToken = env('CHANNEL_ACCESS_TOKEN');

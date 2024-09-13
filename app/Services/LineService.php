@@ -22,7 +22,6 @@ class LineService
                 'avatar' => $profile['pictureUrl'] ?? null,
                 'platform' => 'line',
                 'description' => $profile['statusMessage'] ?? '',
-                'roomId' => 0,
                 'online' => true,
                 'userReply' => 'admin'
             ]);
