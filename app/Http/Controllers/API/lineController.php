@@ -49,7 +49,7 @@ class lineController extends Controller
             } else {
                 $customer = $checkCustomer['customer'];
             }
-            $chatHistory = $this->lineService->storeChat($userId, $events[0], $customer);
+            $chatHistory = $this->lineService->storeChat($customer->id,$userId, $events[0], $customer);
             if ($chatHistory['status'] === false) {
                 throw new \Exception('Failed to store chat history for user: ' . $userId);
             }

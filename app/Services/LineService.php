@@ -57,7 +57,7 @@ class LineService
         }
     }
 
-    public function storeChat($custId, $event, $customer): array
+    public function storeChat($id,$custId, $event, $customer): array
     {
         try {
             $type = $event['message']['type'] ?? 'unknown';
@@ -76,7 +76,7 @@ class LineService
 
             $chatHistory->save();
             $customer = customers::where('custId', $custId)->where('platform', 'line')->first();
-            $this->triggerPusher($custId,$customer->name, $event['message']['text'] ?? 'ส่งรูป หรือ sticker');
+            $this->triggerPusher($id,$custId,$customer->name, $chatHistory->content,$type);
 
             return [
                 'status' => true,
@@ -129,7 +129,7 @@ class LineService
      * @throws ApiErrorException
      * @throws GuzzleException
      */
-    private function triggerPusher($custId ,$custName, $message): void
+    private function triggerPusher($id,$custId ,$custName, $message,$contentType): void
     {
         $options = [
             'cluster' => env('PUSHER_APP_CLUSTER'),
@@ -141,8 +141,11 @@ class LineService
         $pusher->trigger('chat.' . $custId, 'my-event', ['message' => $message]);
         $pusher->trigger('notifications', 'my-event', [
             'message' => 'มีข้อความใหม่เข้ามา',
-            'custId' => $custName,
-            'content' => $message
+            'id' => $id,
+            'custId' => $custId,
+            'custName' => $custName,
+            'content' => $message,
+            'contentType' => $contentType
         ]);
     }
 }
