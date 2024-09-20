@@ -76,7 +76,7 @@ class LineService
 
             $chatHistory->save();
             $customer = customers::where('custId', $custId)->where('platform', 'line')->first();
-            $this->triggerPusher($id,$custId,$customer->name, $chatHistory->content,$type);
+            $this->triggerPusher($id,$custId,$customer->name, $chatHistory->content,$type,$customer->avatar);
 
             return [
                 'status' => true,
@@ -129,7 +129,7 @@ class LineService
      * @throws ApiErrorException
      * @throws GuzzleException
      */
-    private function triggerPusher($id,$custId ,$custName, $message,$contentType): void
+    private function triggerPusher($id,$custId ,$custName, $message,$contentType,$avatar): void
     {
         $options = [
             'cluster' => env('PUSHER_APP_CLUSTER'),
@@ -143,6 +143,7 @@ class LineService
             'message' => 'มีข้อความใหม่เข้ามา',
             'id' => $id,
             'custId' => $custId,
+            'avatar' => $avatar,
             'custName' => $custName,
             'content' => $message,
             'contentType' => $contentType
