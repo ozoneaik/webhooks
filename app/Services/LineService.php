@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActiveConversations;
 use App\Models\chatHistory;
 use App\Models\customers;
 use GuzzleHttp\Client;
@@ -23,7 +24,8 @@ class LineService
                 'platform' => 'line',
                 'description' => $profile['statusMessage'] ?? '',
                 'online' => true,
-                'userReply' => 'admin'
+                'status' => 'pending',
+                'roomId' => 0,
             ]);
             return [
                 'status' => true,
@@ -60,6 +62,7 @@ class LineService
     public function storeChat($id,$custId, $event, $customer): array
     {
         try {
+
             $type = $event['message']['type'] ?? 'unknown';
             $chatHistory = new chatHistory([
                 'custId' => $custId,
@@ -74,8 +77,16 @@ class LineService
                 default => 'Unsupported message type',
             };
 
-            $chatHistory->save();
             $customer = customers::where('custId', $custId)->where('platform', 'line')->first();
+            if ($customer->status === 'progress'){
+                $active_conversation = ActiveConversations::where('custId', $custId)->where('end_time',null)->first();
+                $chatHistory->conversationId = $active_conversation->id;
+            }
+            if($customer->status === 'success'){
+                $customer->status = 'pending';
+                $customer->save();
+            }
+            $chatHistory->save();
             $this->triggerPusher($id,$custId,$customer->name, $chatHistory->content,$type,$customer->avatar);
 
             return [

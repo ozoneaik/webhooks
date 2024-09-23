@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property mixed $sender
  * @property mixed|string $contentType
  * @property mixed|string $content
+ * @property mixed $conversationId
  * @method static select(Expression $raw)
  * @method static where(string $string, mixed $custId)
  */

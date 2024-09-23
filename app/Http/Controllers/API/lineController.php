@@ -29,6 +29,7 @@ class lineController extends Controller
         if (!$accessToken) {
             return response()->json(['message' => 'Channel access token not set'], 500);
         }
+        // ดึงโปรไฟล์ของลูกค้า
         $URL = "https://api.line.me/v2/bot/profile/".$userId;
         try {
             $response = Http::withHeaders([
@@ -39,10 +40,10 @@ class lineController extends Controller
                 return response()->json(['message' => 'Failed to fetch profile'], 500);
             }
             $profile = $response->json();
-            $checkCustomer = $this->lineService->checkCust($userId);
+            $checkCustomer = $this->lineService->checkCust($userId); //ตรวจสอบว่าลูกค้าคนนี้เคยบันทึกหรือยัง
             if ($checkCustomer['status'] === false) {
                 $customer = $this->lineService->create($userId, $profile);
-                if ($customer['status'] === false) {
+                if ($customer['status'] === false) { // สร้างลูกค้า
                     throw new \Exception('Failed to create customer for user: ' . $userId);
                 }
                 $customer = $customer['create'];
