@@ -11,6 +11,7 @@ use App\Models\Rates;
 use App\Services\LineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
@@ -25,6 +26,7 @@ class lineController extends Controller
 
     public function lineWebHook(Request $request): JsonResponse
     {
+        DB::beginTransaction();
         Log::info($request['events'][0]);
         $status = 400;
         try {
@@ -53,7 +55,7 @@ class lineController extends Controller
                         $createCustomer['platformRef'] = $token['accessTokenId'];
                         $createCustomer->save();
                         $customer = $createCustomer;
-                    }else  $customer = $checkCustomer;
+                    } else  $customer = $checkCustomer;
                     break;
                 } else Log::info("ไม่พบ" . $response->status());
             }
@@ -86,16 +88,22 @@ class lineController extends Controller
             /* ---------------------------------------------------------------------------------------------------- */
             /* สร้าง chatHistory */
             $messages['contentType'] = $events['message']['type'];
-            if ($messages['contentType'] == 'text') {
-                $messages['content'] = $events['message']['text'];
-            }elseif ($messages['contentType'] == 'sticker') {
-                $stickerId = $events['message']['stickerId'];
-                $newPath = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/'.$stickerId.'/iPhone/sticker.png';
-                $messages['content'] = $newPath;
-            }elseif ($messages['contentType'] == 'image') {
-                $imageId = $events['message']['id'];
-                $messages['content'] = $this->lineService->handleImage($imageId);
-            } else $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
+            switch ($events['message']['type']) {
+                case 'text':
+                    $messages['content'] = $events['message']['text'];
+                    break;
+                case 'image':
+                    $imageId = $events['message']['id'];
+                    $messages['content'] = $this->lineService->handleImage($imageId);
+                    break;
+                case 'sticker':
+                    $stickerId = $events['message']['stickerId'];
+                    $newPath = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/' . $stickerId . '/iPhone/sticker.png';
+                    $messages['content'] = $newPath;
+                    break;
+                default:
+                    $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
+            }
             $chatHistory = new ChatHistory();
             $chatHistory['custId'] = $custId;
             $chatHistory['content'] = $messages['content'];
@@ -106,18 +114,19 @@ class lineController extends Controller
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
-
+            DB::commit();
         } catch (\Exception $e) {
             if ($e->getMessage() === 'event not data') {
                 Log::info('test not event');
                 $message = $e->getMessage();
                 $detail = 'ไม่มีข้อผิดพลาด';
                 $status = 200;
-            }else{
+            } else {
                 $message = 'เกิดข้อผิดพลาดในการรับข้อความ';
                 $detail = $e->getMessage();
-                Log::info($e->getMessage());
             }
+            Log::info($e->getMessage());
+            DB::rollBack();
         } finally {
             return response()->json([
                 'message' => $message,
