@@ -9,6 +9,7 @@ use App\Models\Customers;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
 use App\Services\LineService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +74,7 @@ class lineController extends Controller
                 $activeConversation = new ActiveConversations();
                 $activeConversation['custId'] = $custId;
                 $activeConversation['roomId'] = 'ROOM00';
+                $activeConversation['receiveAt'] = Carbon::now();
                 $activeConversation['empCode'] = 'BOT';
                 $activeConversation['rateRef'] = $rate['id'];
                 $activeConversation->save();
