@@ -10,8 +10,8 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/line/webhook' ,[lineController::class,'lineWebHook']);
 
-Route::get('/test' ,function(){
-    return response()->json([
-        'message' => 'Api Connected'
-    ]);
+Route::get('/test/{custId}/{rateId}' ,function($custId){
+    $custName = \App\Models\customers::select('name')->where('custId',$custId)->first();
+    $custName = $custName->name;
+    return view('star',compact('custName'));
 });
