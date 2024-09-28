@@ -28,7 +28,6 @@ class lineController extends Controller
     public function lineWebHook(Request $request): JsonResponse
     {
         DB::beginTransaction();
-        Log::info($request['events'][0]);
         $status = 400;
         try {
             /* เตรียมข้อมูล */
