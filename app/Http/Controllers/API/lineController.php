@@ -9,6 +9,7 @@ use App\Models\Customers;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
 use App\Services\LineService;
+use App\Services\PusherService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,10 +20,12 @@ use Illuminate\Support\Facades\Http;
 class lineController extends Controller
 {
     protected LineService $lineService;
+    protected PusherService $pusherService;
 
-    public function __construct(LineService $lineService)
+    public function __construct(LineService $lineService, PusherService $pusherService)
     {
         $this->lineService = $lineService;
+        $this->pusherService = $pusherService;
     }
 
     public function lineWebHook(Request $request): JsonResponse
@@ -81,9 +84,22 @@ class lineController extends Controller
                 $rateRef = $checkRates['id'];
                 $latestRoomId = $checkRates['latestRoomId'];
                 $checkActiveConversation = ActiveConversations::where('rateRef', $rateRef)
-                    ->where('roomId', $latestRoomId)->first();
-                if ($checkActiveConversation) $conversationRef = $checkActiveConversation['id'];
-                else throw new \Exception('ไม่พบ conversationRef จากตาราง ActiveConversations');
+                    ->where('roomId', $latestRoomId)
+                    ->where('endTime',null)
+                    ->first();
+                if ($checkActiveConversation) {
+                    $conversationRef = $checkActiveConversation['id'];
+                    // ถ้าเช็คแล้วว่า มีการรับเรื่อง (receiveAt) แล้วยังไม่มี startTime ให้ startTime = carbon::now()
+                    if (!empty($checkActiveConversation['receiveAt'])) {
+                        if (empty($checkActiveConversation['startTime'])){
+                            $checkActiveConversation['startTime'] = carbon::now();
+                        }
+                        if ($checkActiveConversation->save()) {
+                            $status = 200;
+                        } else throw new \Exception('เจอปัญหา startTime ไม่ได้');
+                    }
+
+                } else throw new \Exception('ไม่พบ conversationRef จากตาราง ActiveConversations');
             }
             /* ---------------------------------------------------------------------------------------------------- */
             /* สร้าง chatHistory */
@@ -98,7 +114,9 @@ class lineController extends Controller
                     break;
                 case 'sticker':
                     $stickerId = $events['message']['stickerId'];
-                    $newPath = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/' . $stickerId . '/iPhone/sticker.png';
+                    $pathStart = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/';
+                    $pathEnd = '/iPhone/sticker.png';
+                    $newPath = $pathStart . $stickerId . $pathEnd;
                     $messages['content'] = $newPath;
                     break;
                 default:
@@ -114,6 +132,11 @@ class lineController extends Controller
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
+//            $this->pusherService->newMessage($chatHistory,false,'มีข้อความใหม่เข้ามา');
+            $notification = $this->pusherService->newMessage($chatHistory,false,'มีข้อความใหม่เข้ามา');
+            if (!$notification['status']) {
+                throw new \Exception('การแจ้งเตือนผิดพลาด');
+            }
             DB::commit();
         } catch (\Exception $e) {
             if ($e->getMessage() === 'event not data') {
