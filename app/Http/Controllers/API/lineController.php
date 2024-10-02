@@ -31,6 +31,7 @@ class lineController extends Controller
     public function lineWebHook(Request $request): JsonResponse
     {
         DB::beginTransaction();
+        Log::info($request->all());
         $status = 400;
         try {
             /* เตรียมข้อมูล */
@@ -42,11 +43,14 @@ class lineController extends Controller
             /* ดึง profile ลูกค้า และสร้างข้อมูลลูกค้า หากยังไม่มีในฐานข้อมูล */
             $URL = "https://api.line.me/v2/bot/profile/$custId";
             $channelAccessTokens = PlatformAccessTokens::all();
+            $find = false;
             foreach ($channelAccessTokens as $token) {
                 $response = Http::withHeaders([
                     'Authorization' => "Bearer " . $token['accessToken'],
                 ])->get($URL);
                 if ($response->status() === 200) {
+                    $find = true;
+                    Log::info("พบ" . $response->status());
                     $checkCustomer = Customers::where('custId', $custId)->first();
                     if (!$checkCustomer) {
                         $res = $response->json();
@@ -54,7 +58,7 @@ class lineController extends Controller
                         $createCustomer['custId'] = $custId;
                         $createCustomer['custName'] = $res['displayName'];
                         $createCustomer['avatar'] = $res['pictureUrl'];
-                        $createCustomer['description'] = $res['statusMessage'];
+                        $createCustomer['description'] = "ทักมาจากไลน์ ".$token['description'];
                         $createCustomer['platformRef'] = $token['accessTokenId'];
                         $createCustomer->save();
                         $customer = $createCustomer;
@@ -62,6 +66,7 @@ class lineController extends Controller
                     break;
                 } else Log::info("ไม่พบ" . $response->status());
             }
+            if (!$find) throw new \Exception('ไม่เจอ access token ที่เข้ากันได้');
             /* ---------------------------------------------------------------------------------------------------- */
             /* ตรวจสอบว่า custId คนนี้มี rate ที่สถานะเป็น pending หรือ progress หรือไม่ ถ้าไม่ */
             $checkRates = Rates::where('custId', $custId)->where('status', '!=', 'success')->first();
@@ -85,13 +90,13 @@ class lineController extends Controller
                 $latestRoomId = $checkRates['latestRoomId'];
                 $checkActiveConversation = ActiveConversations::where('rateRef', $rateRef)
                     ->where('roomId', $latestRoomId)
-                    ->where('endTime',null)
+                    ->where('endTime', null)
                     ->first();
                 if ($checkActiveConversation) {
                     $conversationRef = $checkActiveConversation['id'];
                     // ถ้าเช็คแล้วว่า มีการรับเรื่อง (receiveAt) แล้วยังไม่มี startTime ให้ startTime = carbon::now()
                     if (!empty($checkActiveConversation['receiveAt'])) {
-                        if (empty($checkActiveConversation['startTime'])){
+                        if (empty($checkActiveConversation['startTime'])) {
                             $checkActiveConversation['startTime'] = carbon::now();
                         }
                         if ($checkActiveConversation->save()) {
@@ -133,7 +138,7 @@ class lineController extends Controller
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
 //            $this->pusherService->newMessage($chatHistory,false,'มีข้อความใหม่เข้ามา');
-            $notification = $this->pusherService->newMessage($chatHistory,false,'มีข้อความใหม่เข้ามา');
+            $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
             if (!$notification['status']) {
                 throw new \Exception('การแจ้งเตือนผิดพลาด');
             }

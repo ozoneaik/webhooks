@@ -118,21 +118,32 @@
         <span class="star" data-value="4">★</span>
         <span class="star" data-value="5">★</span>
     </div>
-    <button id="confirmBtn">ยืนยัน</button>
-    <div id="thankYouMessage">ขอบคุณสำหรับคะแนนของคุณ!</div>
+    <button id="confirmBtn" style="display: none;">ยืนยัน</button>
+    <div id="thankYouMessage" style="display: none;">ขอบคุณสำหรับคะแนนของคุณ!</div>
 </div>
 
 <script>
     const stars = document.querySelectorAll('.star');
     const confirmBtn = document.getElementById('confirmBtn');
     const thankYouMessage = document.getElementById('thankYouMessage');
-    let selectedRating = 0;
+    let selectedRating = {{ $star }}; // ค่าจาก backend
+
+    // เมื่อโหลดหน้า ถ้า selectedRating > 0 ให้แสดงข้อความขอบคุณทันที
+    if (selectedRating > 0) {
+        thankYouMessage.style.display = 'block';
+        highlightStars(selectedRating); // แสดงดาวที่เลือกแล้ว
+    }
 
     stars.forEach(star => {
         star.addEventListener('click', () => {
-            selectedRating = parseInt(star.getAttribute('data-value'));
-            updateStars();
-            confirmBtn.style.display = 'inline-block';
+            if (selectedRating === 0) { // ให้เลือกได้เฉพาะถ้ายังไม่ได้ให้คะแนน
+                selectedRating = parseInt(star.getAttribute('data-value'));
+                updateStars();
+                confirmBtn.style.display = 'inline-block';
+                disableStars();
+            }else{
+                disableStars()
+            }
         });
 
         star.addEventListener('mouseover', () => {
@@ -147,8 +158,8 @@
 
     confirmBtn.addEventListener('click', () => {
         confirmBtn.style.display = 'none';
-        // จัดการตรงนี้
         thankYouMessage.style.display = 'block';
+        // จัดการการส่งคะแนนไปที่ backend ตรงนี้
     });
 
     function updateStars() {
@@ -160,6 +171,13 @@
             star.classList.toggle('active', index < count);
         });
     }
+
+    function disableStars() {
+        stars.forEach(star => {
+            star.style.pointerEvents = 'none'; // ปิดการคลิก
+        });
+    }
 </script>
+
 </body>
 </html>
