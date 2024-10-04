@@ -122,11 +122,16 @@
     <div id="thankYouMessage" style="display: none;">ขอบคุณสำหรับคะแนนของคุณ!</div>
 </div>
 
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     const stars = document.querySelectorAll('.star');
     const confirmBtn = document.getElementById('confirmBtn');
     const thankYouMessage = document.getElementById('thankYouMessage');
     let selectedRating = {{ $star }}; // ค่าจาก backend
+    let rateId = {{ $rateId }};
+    let url = '{{ env('APP_URL') }}';
+    let custId = '{{ $custId }}';
 
     // เมื่อโหลดหน้า ถ้า selectedRating > 0 ให้แสดงข้อความขอบคุณทันที
     if (selectedRating > 0) {
@@ -157,8 +162,20 @@
     });
 
     confirmBtn.addEventListener('click', () => {
-        confirmBtn.style.display = 'none';
-        thankYouMessage.style.display = 'block';
+
+        // alert(selectedRating+rateId);
+        // axios.get(`${url}/rate/${selectedRating}/${rateId}`)
+        axios({
+            method: 'get',
+            url: `${url}/rate/${selectedRating}/${rateId}`,
+            responseType: 'stream'
+        })
+            .then(function (response) {
+                if(response.status === 200){
+                    confirmBtn.style.display = 'none';
+                    thankYouMessage.style.display = 'block';
+                }
+            });
         // จัดการการส่งคะแนนไปที่ backend ตรงนี้
     });
 
