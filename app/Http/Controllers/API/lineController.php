@@ -34,6 +34,7 @@ class lineController extends Controller
         Log::info($request->all());
         $status = 400;
         try {
+            $TOKEN = '';
             /* เตรียมข้อมูล */
             if (count($request['events']) <= 0) throw new \Exception('event not data');
             $events = $request['events'][0];
@@ -49,6 +50,7 @@ class lineController extends Controller
                     'Authorization' => "Bearer " . $token['accessToken'],
                 ])->get($URL);
                 if ($response->status() === 200) {
+                    $TOKEN = $token['accessToken'];
                     $find = true;
                     Log::info("พบ" . $response->status());
                     $checkCustomer = Customers::where('custId', $custId)->first();
@@ -58,7 +60,7 @@ class lineController extends Controller
                         $createCustomer['custId'] = $custId;
                         $createCustomer['custName'] = $res['displayName'];
                         $createCustomer['avatar'] = $res['pictureUrl'];
-                        $createCustomer['description'] = "ทักมาจากไลน์ ".$token['description'];
+                        $createCustomer['description'] = "ทักมาจากไลน์ " . $token['description'];
                         $createCustomer['platformRef'] = $token['accessTokenId'];
                         $createCustomer->save();
                         $customer = $createCustomer;
@@ -81,10 +83,16 @@ class lineController extends Controller
                 $activeConversation = new ActiveConversations();
                 $activeConversation['custId'] = $custId;
                 $activeConversation['roomId'] = 'ROOM00';
-//                $activeConversation['empCode'] = 'BOT';
+                $activeConversation['empCode'] = 'BOT';
                 $activeConversation['rateRef'] = $rate['id'];
                 $activeConversation->save();
                 $conversationRef = $activeConversation['id'];
+
+                // ส่งเมนูตัวเลือกให้ลูกค้าเลือก
+                $sendMenu  = $this->lineService->sendMenu($custId,$TOKEN);
+                if (!$sendMenu['status']) throw new \Exception($sendMenu['message']);
+
+
             } else {
                 $rateRef = $checkRates['id'];
                 $latestRoomId = $checkRates['latestRoomId'];
@@ -103,7 +111,6 @@ class lineController extends Controller
                             $status = 200;
                         } else throw new \Exception('เจอปัญหา startTime ไม่ได้');
                     }
-
                 } else throw new \Exception('ไม่พบ conversationRef จากตาราง ActiveConversations');
             }
             /* ---------------------------------------------------------------------------------------------------- */
@@ -115,7 +122,7 @@ class lineController extends Controller
                     break;
                 case 'image':
                     $imageId = $events['message']['id'];
-                    $messages['content'] = $this->lineService->handleImage($imageId);
+                    $messages['content'] = $this->lineService->handleImage($imageId,$TOKEN);
                     break;
                 case 'sticker':
                     $stickerId = $events['message']['stickerId'];
@@ -134,6 +141,8 @@ class lineController extends Controller
             $chatHistory['sender'] = json_encode($customer);
             $chatHistory['conversationRef'] = $conversationRef;
             $chatHistory->save();
+
+
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
