@@ -10,6 +10,11 @@ Route::get('/', function () {
 
 Route::get('/{custId}/{rateId}' ,function($custId,$rateId){
     $custName = customers::select('custName')->where('custId',$custId)->first();
+    if (!$custName){
+        return response()->json([
+            'message' => 'เกิดข้อผิดพลาดบางอย่าง'
+        ],404);
+    }
     $custName = $custName->custName;
     $rateStatus = Rates::where('id',$rateId)->first();
     if (!$rateStatus){
