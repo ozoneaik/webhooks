@@ -2,7 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\botMenu;
+use App\Models\ChatRooms;
+use App\Models\Rates;
 use GuzzleHttp\Client;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +43,15 @@ class LineService
     public function sendMenu($custId, $token): array
     {
         try {
-            $UrlPush = 'https://api.line.me/v2/bot/message/push';
+            $botMenus = botMenu::all();
+            $actions = [];
+            foreach ($botMenus as $key => $botMenu) {
+                $actions[] = [
+                    'type' => 'message',
+                    'text' => 'เมนู->'.$botMenu->roomId,
+                    'label' => $botMenu->menuName,
+                ];
+            }
             $body = [
                 "to" => $custId,
                 'messages' => [
@@ -50,41 +62,85 @@ class LineService
                             'type' => 'buttons',
                             'title' => 'ยินดีต้อนรับ! 🙏',
                             'text' => 'กรุณาเลือกเมนูที่ท่านต้องการสอบถาม',
-                            'actions' => [
-                                [
-                                    'type' => 'message',
-                                    'label' => '🧰ติดต่อห้องช่าง',
-                                    'text' => 'เมนู->ติดต่อห้องช่าง'
-                                ],
-                                [
-                                    'type' => 'message',
-                                    'label' => '💵ติดต่อห้องการขาย',
-                                    'text' => 'เมนู->ติดต่อห้องการขาย'
-                                ],
-                                [
-                                    'type' => 'message',
-                                    'label' => '💼ติดต่อห้องประสานการขาย',
-                                    'text' => 'เมนู->ติดต่อห้องประสานการขาย'
-                                ],
-                                [
-                                    'type' => 'message',
-                                    'label' => '🎃อื่นๆ',
-                                    'text' => 'เมนู->อื่นๆ'
-                                ]
-                            ]
+                            'actions' => $actions
                         ]
                     ]
                 ]
             ];
-            $response = Http::withHeaders([
+            $res = $this->linePushMessage($token, $body);
+            if ($res['status']) {
+                $data['status'] = true;
+                $data['message'] = $res['message'];
+            } else throw new \Exception($res['message']);
+        } catch (\Exception $e) {
+            $data['status'] = false;
+            $data['message'] = $e->getMessage();
+        } finally {
+            return $data;
+        }
+    }
+
+    public function handleChangeRoom($content, $rate, $token): array
+    {
+        Log::info('handleChangeRoom');
+        try {
+            $custId = $rate['custId'];
+            $update = Rates::where('id', $rate['id'])->first();
+            DB::beginTransaction();
+            $chatRooms = ChatRooms::select('roomId','roomName')->get();
+            foreach ($chatRooms as $key=>$chatRoom) {
+                $prefix = 'เมนู->'.$chatRoom->roomId;
+                if ($content === $prefix) {
+                    $text = $chatRoom->roomName;
+                    $update->latestRoomId = $chatRoom->roomId;
+                    $update->status = 'pending';
+                    $update->save();
+                    break;
+                }else{
+                    if ($key === count($chatRooms)-1) {
+                        $update->latestRoomId = $chatRoom->roomId;
+                        $update->status = 'pending';
+                        $update->save();
+                    }
+                    $text = 'พนักงานที่รับผิดชอบ';
+                }
+            }
+            $body = [
+                "to" => $custId,
+                'messages' => [[
+                    'type' => 'text',
+                    'text' => "ระบบกำลังส่งแชทของท่านไปยัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ",
+                ]]
+            ];
+
+            $res = $this->linePushMessage($token, $body);
+            if ($res['status']) {
+                $data['status'] = true;
+                $data['message'] = $res['message'];
+            } else throw new \Exception($res['message']);
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $data['status'] = true;
+            $data['message'] = $e->getMessage();
+        } finally {
+            return $data;
+        }
+    }
+
+    private function linePushMessage($token, $body): array
+    {
+        try {
+            $UrlPush = 'https://api.line.me/v2/bot/message/push';
+            $res = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $token
             ])->asJson()->post($UrlPush, $body);
-            if ($response->status() == 200) {
+            if ($res->status() == 200) {
                 $data['status'] = true;
-                $data['message'] = 'ส่งประเมินสำเร็จ';
+                $data['message'] = 'successful';
             } else {
-                Log::info($response->json());
-                throw new \Exception('ส่งประเมินไม่ได้');
+                Log::info($res->json());
+                throw new \Exception('not successful');
             }
         } catch (\Exception $e) {
             $data['status'] = false;
@@ -92,6 +148,6 @@ class LineService
         } finally {
             return $data;
         }
-
     }
+
 }

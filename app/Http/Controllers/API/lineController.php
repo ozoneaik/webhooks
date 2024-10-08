@@ -32,6 +32,7 @@ class lineController extends Controller
     {
         DB::beginTransaction();
         Log::info($request->all());
+        $checkSendMenu = false;
         $status = 400;
         try {
             $TOKEN = '';
@@ -77,8 +78,9 @@ class lineController extends Controller
                 $rate = new Rates();
                 $rate['custId'] = $custId;
                 $rate['rate'] = 0;
-                $rate['status'] = 'pending';
+                $rate['status'] = 'progress';
                 $rate['latestRoomId'] = 'ROOM00';
+                $rate['receiveAt'] = Carbon::now();
                 $rate->save();
                 $activeConversation = new ActiveConversations();
                 $activeConversation['custId'] = $custId;
@@ -89,9 +91,9 @@ class lineController extends Controller
                 $conversationRef = $activeConversation['id'];
 
                 // ส่งเมนูตัวเลือกให้ลูกค้าเลือก
-                $sendMenu  = $this->lineService->sendMenu($custId,$TOKEN);
+                $sendMenu = $this->lineService->sendMenu($custId, $TOKEN);
                 if (!$sendMenu['status']) throw new \Exception($sendMenu['message']);
-
+                else $checkSendMenu = true;
 
             } else {
                 $rateRef = $checkRates['id'];
@@ -122,7 +124,7 @@ class lineController extends Controller
                     break;
                 case 'image':
                     $imageId = $events['message']['id'];
-                    $messages['content'] = $this->lineService->handleImage($imageId,$TOKEN);
+                    $messages['content'] = $this->lineService->handleImage($imageId, $TOKEN);
                     break;
                 case 'sticker':
                     $stickerId = $events['message']['stickerId'];
@@ -142,6 +144,15 @@ class lineController extends Controller
             $chatHistory['conversationRef'] = $conversationRef;
             $chatHistory->save();
 
+            // กรองการส่งต่อถ้า rate ยังอยู่ในห้อง Bot
+            $R = $rate ?? $checkRates;
+            if ($R['latestRoomId'] === 'ROOM00') {
+                if (!$checkSendMenu) {
+                    $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN);
+                        $change['status'] ?? throw new \Exception($change['message']);
+                }
+            }
+
 
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
@@ -151,6 +162,7 @@ class lineController extends Controller
             if (!$notification['status']) {
                 throw new \Exception('การแจ้งเตือนผิดพลาด');
             }
+            $status = 200;
             DB::commit();
         } catch (\Exception $e) {
             if ($e->getMessage() === 'event not data') {
