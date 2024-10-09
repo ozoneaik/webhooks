@@ -80,12 +80,12 @@ class lineController extends Controller
                 $rate['rate'] = 0;
                 $rate['status'] = 'progress';
                 $rate['latestRoomId'] = 'ROOM00';
-                $rate['receiveAt'] = Carbon::now();
                 $rate->save();
                 $activeConversation = new ActiveConversations();
                 $activeConversation['custId'] = $custId;
                 $activeConversation['roomId'] = 'ROOM00';
                 $activeConversation['empCode'] = 'BOT';
+                $activeConversation['receiveAt'] = Carbon::now();
                 $activeConversation['rateRef'] = $rate['id'];
                 $activeConversation->save();
                 $conversationRef = $activeConversation['id'];

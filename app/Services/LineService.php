@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActiveConversations;
 use App\Models\botMenu;
 use App\Models\ChatRooms;
 use App\Models\Rates;
@@ -92,15 +93,32 @@ class LineService
                 $prefix = 'เมนู->'.$chatRoom->roomId;
                 if ($content === $prefix) {
                     $text = $chatRoom->roomName;
+                    // ทำการ update ห้องในตาราง rate
                     $update->latestRoomId = $chatRoom->roomId;
                     $update->status = 'pending';
                     $update->save();
+                    // ทำการสร้าง active
+                    $AC = new ActiveConversations();
+                    $AC['custId'] = $custId;
+                    $AC['roomId'] = $chatRoom->roomId;
+                    $AC['from_empCode'] = 'BOT';
+                    $AC['from_roomId'] = 'ROOM00';
+                    $AC['rateRef'] = $rate['id'];
+                    $AC->save();
                     break;
                 }else{
                     if ($key === count($chatRooms)-1) {
                         $update->latestRoomId = $chatRoom->roomId;
                         $update->status = 'pending';
                         $update->save();
+                        // ทำการสร้าง active
+                        $AC = new ActiveConversations();
+                        $AC['custId'] = $custId;
+                        $AC['roomId'] = $chatRoom->roomId;
+                        $AC['from_empCode'] = 'BOT';
+                        $AC['from_roomId'] = 'ROOM00';
+                        $AC['rateRef'] = $rate['id'];
+                        $AC->save();
                     }
                     $text = 'พนักงานที่รับผิดชอบ';
                 }
