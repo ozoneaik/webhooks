@@ -130,7 +130,6 @@
     const thankYouMessage = document.getElementById('thankYouMessage');
     let selectedRating = {{ $star }}; // ค่าจาก backend
     let rateId = {{ $rateId }};
-    let url = '{{ env('APP_URL') }}';
     let custId = '{{ $custId }}';
 
     // เมื่อโหลดหน้า ถ้า selectedRating > 0 ให้แสดงข้อความขอบคุณทันที
@@ -167,7 +166,7 @@
         // axios.get(`${url}/rate/${selectedRating}/${rateId}`)
         axios({
             method: 'get',
-            url: `${url}/rate/${selectedRating}/${rateId}`,
+            url: `/rate/${selectedRating}/${rateId}`,
             responseType: 'stream'
         })
             .then(function (response) {
