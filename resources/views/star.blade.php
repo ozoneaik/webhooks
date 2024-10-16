@@ -145,9 +145,7 @@
                 updateStars();
                 confirmBtn.style.display = 'inline-block';
                 disableStars();
-            }else{
-                disableStars()
-            }
+            }else disableStars()
         });
 
         star.addEventListener('mouseover', () => {
