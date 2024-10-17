@@ -38,6 +38,7 @@ class lineController extends Controller
             $TOKEN = '';
             /* เตรียมข้อมูล */
             if (count($request['events']) <= 0) throw new \Exception('event not data');
+            if ($request['events'][0]['type'] !== 'message') throw new \Exception('event type is not message');
             $events = $request['events'][0];
             $custId = $events['source']['userId'];
             $customer = '';

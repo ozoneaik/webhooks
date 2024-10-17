@@ -108,13 +108,13 @@ class LineService
                     break;
                 }else{
                     if ($key === count($chatRooms)-1) {
-                        $update->latestRoomId = $chatRoom->roomId;
+                        $update->latestRoomId = 'ROOM01';
                         $update->status = 'pending';
                         $update->save();
                         // ทำการสร้าง active
                         $AC = new ActiveConversations();
                         $AC['custId'] = $custId;
-                        $AC['roomId'] = $chatRoom->roomId;
+                        $AC['roomId'] = 'ROOM01';
                         $AC['from_empCode'] = 'BOT';
                         $AC['from_roomId'] = 'ROOM00';
                         $AC['rateRef'] = $rate['id'];

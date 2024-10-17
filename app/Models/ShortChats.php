@@ -10,5 +10,5 @@ class ShortChats extends Model
     use HasFactory;
     protected $connection = 'call_center_database';
     protected $table = 'short_chats';
-    protected $fillable = ['content'];
+    protected $fillable = ['content','group','model','problem'];
 }
