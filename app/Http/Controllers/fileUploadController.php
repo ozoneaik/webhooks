@@ -22,7 +22,7 @@ class fileUploadController extends Controller
         Storage::disk('public')->put($imagePath, file_get_contents($file));
 
         // สร้าง URL สำหรับการเข้าถึงรูปภาพ
-        $fullImagePath = env('IMAGE_URL') . '/storage/' . $imagePath;
+        $fullImagePath = env('IMAGE_URL') . '/' . $imagePath;
 
         // ส่งข้อมูลกลับในรูปแบบ JSON
         return response()->json([
