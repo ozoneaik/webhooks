@@ -8,21 +8,28 @@ use Illuminate\Support\Facades\Storage;
 
 class fileUploadController extends Controller
 {
-    public function fileUpload(fileUploadRequest $request) : JsonResponse{
-        $file =  $request->file('file');
+    public function fileUpload(fileUploadRequest $request) : JsonResponse
+    {
+        // รับไฟล์จาก request
+        $file = $request->file('file');
         $fileName = $file->getClientOriginalName();
         $extension = $file->getClientOriginalExtension();
-        $imagePath = 'line-images/'.time().'.'.$extension;
-        Storage::disk('public')->putFileAs('line-images', $file, time().'.'.$extension);
 
+        // สร้าง path สำหรับการบันทึกรูปภาพ
+        $imagePath = 'line-images/' . time() . '.' . $extension;
 
-        // สร้างชื่อไฟล์สำหรับไฟล์ preview
-        $previewImagePath = 'line-images/preview_' . time() . '.' . $extension;
-        $fullImagePath = env('IMAGE_URL').'/storage/'. $imagePath;
+        // บันทึกไฟล์ใน disk 'public'
+        Storage::disk('public')->put($imagePath, file_get_contents($file));
+
+        // สร้าง URL สำหรับการเข้าถึงรูปภาพ
+        $fullImagePath = env('IMAGE_URL') . '/storage/' . $imagePath;
+
+        // ส่งข้อมูลกลับในรูปแบบ JSON
         return response()->json([
             'fileName' => $fileName,
             'extension' => $extension,
             'imagePath' => $fullImagePath
         ]);
     }
+
 }
