@@ -30,6 +30,7 @@ class lineController extends Controller
 
     public function lineWebHook(Request $request): JsonResponse
     {
+        Log::channel('testDebug')->info('testDebug');
         DB::beginTransaction();
         Log::info($request->all());
         $checkSendMenu = false;
@@ -125,7 +126,7 @@ class lineController extends Controller
                     break;
                 case 'image':
                     $imageId = $events['message']['id'];
-                    $messages['content'] = $this->lineService->handleImage($imageId, $TOKEN);
+                    $messages['content'] = $this->lineService->handleMedia($imageId, $TOKEN);
                     break;
                 case 'sticker':
                     $stickerId = $events['message']['stickerId'];
@@ -134,6 +135,11 @@ class lineController extends Controller
                     $newPath = $pathStart . $stickerId . $pathEnd;
                     $messages['content'] = $newPath;
                     break;
+                    case 'video':
+                        $videoId = $events['message']['id'];
+                        $messages['content'] = $this->lineService->handleMedia($videoId, $TOKEN);
+                        break;
+
                 default:
                     $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
             }
@@ -158,7 +164,6 @@ class lineController extends Controller
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
-//            $this->pusherService->newMessage($chatHistory,false,'มีข้อความใหม่เข้ามา');
             $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
             if (!$notification['status']) {
                 throw new \Exception('การแจ้งเตือนผิดพลาด');

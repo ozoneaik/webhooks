@@ -14,13 +14,13 @@ use Illuminate\Support\Facades\Storage;
 
 class LineService
 {
-    public function handleImage($imageId, $token): string
+    public function handleMedia($mediaId, $token): string
     {
-        if (!$imageId) {
+        if (!$mediaId) {
             return 'No image ID provided';
         }
 
-        $url = "https://api-data.line.me/v2/bot/message/$imageId/content";
+        $url = "https://api-data.line.me/v2/bot/message/$mediaId/content";
         $client = new Client();
         $response = $client->request('GET', $url, [
             'headers' => ['Authorization' => 'Bearer ' . $token],
@@ -32,10 +32,15 @@ class LineService
             'image/jpeg' => '.jpg',
             'image/png' => '.png',
             'image/gif' => '.gif',
+            'video/mp4' => '.mp4',
+            'video/webm' => '.webm',
+            'video/ogg' => '.ogg',
+            'video/avi' => '.avi',
+            'video/mov' => '.mov',
             default => '.bin',
         };
 
-        $imagePath = 'line-images/' . $imageId . $extension;
+        $imagePath = 'line-images/' . $mediaId . $extension;
         Storage::disk('public')->put($imagePath, $imageContent);
 
         return asset('storage/' . $imagePath);
@@ -89,6 +94,7 @@ class LineService
             $update = Rates::where('id', $rate['id'])->first();
             DB::beginTransaction();
             $chatRooms = ChatRooms::select('roomId','roomName')->get();
+            $text = 'พนักงานที่รับผิดชอบ';
             foreach ($chatRooms as $key=>$chatRoom) {
                 $prefix = 'เมนู->'.$chatRoom->roomId;
                 if ($content === $prefix) {
@@ -120,14 +126,13 @@ class LineService
                         $AC['rateRef'] = $rate['id'];
                         $AC->save();
                     }
-                    $text = 'พนักงานที่รับผิดชอบ';
                 }
             }
             $body = [
                 "to" => $custId,
                 'messages' => [[
                     'type' => 'text',
-                    'text' => "ระบบกำลังส่งแชทของท่านไปยัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ",
+                    'text' => "ระบบกำลังส่งแชทของท่านไปยัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ🙏",
                 ]]
             ];
 
