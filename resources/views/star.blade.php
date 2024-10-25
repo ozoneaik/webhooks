@@ -131,7 +131,7 @@
     let selectedRating = {{ $star }}; // ค่าจาก backend
     let rateId = {{ $rateId }};
     let custId = '{{ $custId }}';
-    let RateURL = {{ env('RATE_URL') }}
+    let RateURL = '{{ env('RATE_URL') }}';
 
     // เมื่อโหลดหน้า ถ้า selectedRating > 0 ให้แสดงข้อความขอบคุณทันที
     if (selectedRating > 0) {
