@@ -141,6 +141,7 @@
 
     stars.forEach(star => {
         star.addEventListener('click', () => {
+            console.log(RateURL)
             if (selectedRating === 0) { // ให้เลือกได้เฉพาะถ้ายังไม่ได้ให้คะแนน
                 selectedRating = parseInt(star.getAttribute('data-value'));
                 updateStars();
