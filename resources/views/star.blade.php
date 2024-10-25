@@ -131,6 +131,7 @@
     let selectedRating = {{ $star }}; // ค่าจาก backend
     let rateId = {{ $rateId }};
     let custId = '{{ $custId }}';
+    let RateURL = {{ env('RATE_URL') }}
 
     // เมื่อโหลดหน้า ถ้า selectedRating > 0 ให้แสดงข้อความขอบคุณทันที
     if (selectedRating > 0) {
@@ -164,7 +165,7 @@
         // axios.get(`${url}/rate/${selectedRating}/${rateId}`)
         axios({
             method: 'get',
-            url: `/rate/${selectedRating}/${rateId}`,
+            url: `${RateURL}/rate/${selectedRating}/${rateId}`,
             responseType: 'stream'
         })
             .then(function (response) {
