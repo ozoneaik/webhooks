@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\Line\fileUploadRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class fileUploadController extends Controller
 {
-    public function fileUpload(fileUploadRequest $request) : JsonResponse
+    public function fileUpload(Request $request): JsonResponse
     {
+        $request->validate(['file' => 'required|file|mimes:jpeg,jpg,png,gif'], ['file.required' => 'กรุณาอัปโหลดไฟล์']);
         // รับไฟล์จาก request
         $file = $request->file('file');
         $fileName = $file->getClientOriginalName();

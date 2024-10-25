@@ -54,7 +54,8 @@ class LineService
             foreach ($botMenus as $key => $botMenu) {
                 $actions[] = [
                     'type' => 'message',
-                    'text' => 'เมนู->'.$botMenu->roomId,
+//                    'text' => 'เมนู->'.$botMenu->roomId,
+                    'text' => $botMenu->menuName,
                     'label' => $botMenu->menuName,
                 ];
             }
@@ -88,35 +89,37 @@ class LineService
 
     public function handleChangeRoom($content, $rate, $token): array
     {
-        Log::info('handleChangeRoom');
         try {
             $custId = $rate['custId'];
-            $update = Rates::where('id', $rate['id'])->first();
+            $updateRate = Rates::where('id', $rate['id'])->first();
             DB::beginTransaction();
-            $chatRooms = ChatRooms::select('roomId','roomName')->get();
+            $chatRooms = ChatRooms::select('roomId', 'roomName')->get();
             $text = 'พนักงานที่รับผิดชอบ';
-            foreach ($chatRooms as $key=>$chatRoom) {
-                $prefix = 'เมนู->'.$chatRoom->roomId;
-                if ($content === $prefix) {
-                    $text = $chatRoom->roomName;
+            foreach ($chatRooms as $key => $chatRoom) {
+                $check = botMenu::where('menuName', $content)->first();
+                Log::info("บอทเปลี่ยนห้อง RateId >> $rate->id");
+                if ($check) { //$content === $prefix
+                    Log::info('อยู่ใน menu');
+                    $text = $content;
                     // ทำการ update ห้องในตาราง rate
-                    $update->latestRoomId = $chatRoom->roomId;
-                    $update->status = 'pending';
-                    $update->save();
+                    $updateRate->latestRoomId = $check->roomId;
+                    $updateRate->status = 'pending';
+                    $updateRate->save();
                     // ทำการสร้าง active
                     $AC = new ActiveConversations();
                     $AC['custId'] = $custId;
-                    $AC['roomId'] = $chatRoom->roomId;
+                    $AC['roomId'] = $check->roomId;
                     $AC['from_empCode'] = 'BOT';
                     $AC['from_roomId'] = 'ROOM00';
                     $AC['rateRef'] = $rate['id'];
                     $AC->save();
                     break;
-                }else{
-                    if ($key === count($chatRooms)-1) {
-                        $update->latestRoomId = 'ROOM01';
-                        $update->status = 'pending';
-                        $update->save();
+                } else {
+                    if ($key === count($chatRooms) - 1) {
+                        Log::info('ไม่อยู่ใน menu');
+                        $updateRate->latestRoomId = 'ROOM01';
+                        $updateRate->status = 'pending';
+                        $updateRate->save();
                         // ทำการสร้าง active
                         $AC = new ActiveConversations();
                         $AC['custId'] = $custId;
@@ -132,7 +135,7 @@ class LineService
                 "to" => $custId,
                 'messages' => [[
                     'type' => 'text',
-                    'text' => "ระบบกำลังส่งแชทของท่านไปยัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ🙏",
+                    'text' => "ระบบกำลัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ🙏",
                 ]]
             ];
 
