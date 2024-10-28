@@ -13,5 +13,5 @@ class botMenu extends Model
     use HasFactory;
     protected $connection = 'call_center_database';
     protected $table = 'bot_menus';
-    protected $fillable = ['menuName','roomId'];
+    protected $fillable = ['botTokenId','menuName','roomId'];
 }

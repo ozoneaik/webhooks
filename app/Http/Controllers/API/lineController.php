@@ -64,7 +64,7 @@ class lineController extends Controller
                         $createCustomer['custName'] = $res['displayName'];
                         $createCustomer['avatar'] = $res['pictureUrl'];
                         $createCustomer['description'] = "ทักมาจากไลน์ " . $token['description'];
-                        $createCustomer['platformRef'] = $token['accessTokenId'];
+                        $createCustomer['platformRef'] = $token['id'];
                         $createCustomer->save();
                         $customer = $createCustomer;
                     } else  $customer = $checkCustomer;
