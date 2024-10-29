@@ -49,14 +49,25 @@ class LineService
     public function sendMenu($custId, $token): array
     {
         try {
-            $botMenus = botMenu::all();
+            $botMenus = botMenu::select('bot_menus.menuName')
+                ->join('platform_access_tokens', 'bot_menus.botTokenId', '=', 'platform_access_tokens.id')
+                ->join('customers', 'platform_access_tokens.id', '=', 'customers.platformRef')
+                ->where('customers.custId', $custId)
+                ->get();
             $actions = [];
-            foreach ($botMenus as $key => $botMenu) {
+            if (count($botMenus) > 0) {
+                foreach ($botMenus as $botMenu) {
+                    $actions[] = [
+                        'type' => 'message',
+                        'text' => $botMenu->menuName,
+                        'label' => $botMenu->menuName,
+                    ];
+                }
+            }else{
                 $actions[] = [
                     'type' => 'message',
-//                    'text' => 'เมนู->'.$botMenu->roomId,
-                    'text' => $botMenu->menuName,
-                    'label' => $botMenu->menuName,
+                    'text' => 'อื่นๆ',
+                    'label' => 'อื่นๆ'
                 ];
             }
             $body = [
