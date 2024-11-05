@@ -42,8 +42,9 @@ class LineService
 
         $imagePath = 'line-images/' . $mediaId . $extension;
         Storage::disk('public')->put($imagePath, $imageContent);
-
-        return asset('storage/' . $imagePath);
+        $fullPath = env('IMAGE_URL').$imagePath;
+        return $fullPath;
+//        return asset('storage/' . $imagePath);
     }
 
     public function sendMenu($custId, $token): array
