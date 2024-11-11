@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ActiveConversations;
 use App\Models\ChatHistory;
 use App\Models\Customers;
+use App\Models\Employee;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
+use App\Models\User;
 use App\Services\LineService;
 use App\Services\PusherService;
 use Carbon\Carbon;
@@ -32,8 +34,8 @@ class lineController extends Controller
     {
         Log::channel('testDebug')->info('testDebug');
         DB::beginTransaction();
-        Log::info($request->all());
         $checkSendMenu = false;
+        $SEND_MENU = false;
         $status = 400;
         try {
             $TOKEN = '';
@@ -67,7 +69,7 @@ class lineController extends Controller
                         $createCustomer['platformRef'] = $token['id'];
                         $createCustomer->save();
                         $customer = $createCustomer;
-                    } else  $customer = $checkCustomer;
+                    } else $customer = $checkCustomer;
                     break;
                 } else Log::info("ไม่พบ" . $response->status());
             }
@@ -88,12 +90,14 @@ class lineController extends Controller
                 $activeConversation['roomId'] = 'ROOM00';
                 $activeConversation['empCode'] = 'BOT';
                 $activeConversation['receiveAt'] = Carbon::now();
+                $activeConversation['startTime'] = Carbon::now();
                 $activeConversation['rateRef'] = $rate['id'];
                 $activeConversation->save();
                 $conversationRef = $activeConversation['id'];
 
                 // ส่งเมนูตัวเลือกให้ลูกค้าเลือก
                 $sendMenu = $this->lineService->sendMenu($custId, $TOKEN);
+                $SEND_MENU = true;
                 if (!$sendMenu['status']) throw new \Exception($sendMenu['message']);
                 else $checkSendMenu = true;
 
@@ -139,7 +143,6 @@ class lineController extends Controller
                         $videoId = $events['message']['id'];
                         $messages['content'] = $this->lineService->handleMedia($videoId, $TOKEN);
                         break;
-
                 default:
                     $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
             }
@@ -151,13 +154,43 @@ class lineController extends Controller
             $chatHistory['conversationRef'] = $conversationRef;
             $chatHistory->save();
 
+            // ถ้ามีการส่งเมนู Bot ให้ลูกค้า
+            if($SEND_MENU){
+                $bot = Employee::where('empCode','BOT')->first();
+                $chatHistory = new ChatHistory();
+                $chatHistory['custId'] = $custId;
+                $chatHistory['content'] = "สวัสดีคุณ ".$customer['custName']." เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ";
+                $chatHistory['contentType'] = 'text';
+                $chatHistory['sender'] = json_encode($bot);
+                $chatHistory['conversationRef'] = $conversationRef;
+                $chatHistory->save();
+                $chatHistory = new ChatHistory();
+                $chatHistory['custId'] = $custId;
+                $chatHistory['content'] = 'เมนูของบอทแสดง';
+                $chatHistory['contentType'] = 'text';
+                $chatHistory['sender'] = json_encode($bot);
+                $chatHistory['conversationRef'] = $conversationRef;
+                $chatHistory->save();
+            }
+
             // กรองการส่งต่อถ้า rate ยังอยู่ในห้อง Bot
             $R = $rate ?? $checkRates;
             if ($R['latestRoomId'] === 'ROOM00') {
                 if (!$checkSendMenu) {
                     $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN);
-                        $change['status'] ?? throw new \Exception($change['message']);
-                }
+                    if ($change['status']){
+                        $bot = Employee::where('empCode','BOT')->first();
+                        $chatHistory = new ChatHistory();
+                        $chatHistory['custId'] = $custId;
+                        $chatHistory['content'] = 'ระบบกำลังส่งต่อให้เจ้าหน้าที่ที่รับผิดชอบเพื่อเร่งดำเนินการเข้ามาสนทนา กรุณารอสักครู่';
+                        $chatHistory['contentType'] = 'text';
+                        $chatHistory['sender'] = json_encode($bot);
+                        $chatHistory['conversationRef'] = $conversationRef;
+                        $chatHistory->save();
+                    }else{
+                        throw new \Exception($change['message']);
+                    }
+                }else Log::info('$checkSendMenu is true');
             }
 
 

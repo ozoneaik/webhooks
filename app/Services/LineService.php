@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\ActiveConversations;
 use App\Models\botMenu;
 use App\Models\ChatRooms;
+use App\Models\Customers;
 use App\Models\Rates;
+use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -50,6 +52,7 @@ class LineService
     public function sendMenu($custId, $token): array
     {
         try {
+            $customer = Customers::where('custId', $custId)->first();
             $botMenus = botMenu::select('bot_menus.menuName')
                 ->join('platform_access_tokens', 'bot_menus.botTokenId', '=', 'platform_access_tokens.id')
                 ->join('customers', 'platform_access_tokens.id', '=', 'customers.platformRef')
@@ -74,6 +77,10 @@ class LineService
             $body = [
                 "to" => $custId,
                 'messages' => [
+                    [
+                        'type' => 'text',
+                        'text' => "สวัสดีคุณ ".$customer['custName']." เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ",
+                    ],
                     [
                         'type' => 'template',
                         'altText' => 'this is a buttons template',
@@ -104,6 +111,21 @@ class LineService
         try {
             $custId = $rate['custId'];
             $updateRate = Rates::where('id', $rate['id'])->first();
+
+            $active = ActiveConversations::where('custId', $custId)
+                ->where('rateRef',$rate['id'])
+                ->where('roomId', $rate['latestRoomId'])
+                ->first();
+            $active['endTime'] = Carbon::now();
+            $startTime = Carbon::parse($active['startTime']);
+            $endTime = Carbon::parse($active['endTime']);
+            $diffInSeconds = $startTime->diffInSeconds($endTime);
+            $hours = floor($diffInSeconds / 3600);
+            $minutes = floor(($diffInSeconds % 3600) / 60);
+            $seconds = $diffInSeconds % 60;
+            $active['totalTime'] =  "{$hours} ชั่วโมง {$minutes} นาที {$seconds} วินาที";
+            $active->save();
+
             DB::beginTransaction();
             $chatRooms = ChatRooms::select('roomId', 'roomName')->get();
             $text = 'พนักงานที่รับผิดชอบ';
@@ -147,7 +169,7 @@ class LineService
                 "to" => $custId,
                 'messages' => [[
                     'type' => 'text',
-                    'text' => "ระบบกำลัง $text กรุณารอพนักงานรับเรื่องและตอบกลับครับ/ค่ะ🙏",
+                    'text' => "ระบบกำลังส่งต่อให้เจ้าหน้าที่ที่รับผิดชอบเพื่อเร่งดำเนินการเข้ามาสนทนา กรุณารอสักครู่",
                 ]]
             ];
 
