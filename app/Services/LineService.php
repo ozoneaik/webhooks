@@ -18,6 +18,7 @@ class LineService
 {
     public function handleMedia($mediaId, $token): string
     {
+        Log::channel('lineEvent')->info('มีการส่ง media');
         if (!$mediaId) {
             return 'No image ID provided';
         }
@@ -42,7 +43,7 @@ class LineService
             default => '.bin',
         };
 
-        $imagePath = 'line-images/' . $mediaId . $extension;
+        $imagePath = '/line-images/' . $mediaId . $extension;
         Storage::disk('public')->put($imagePath, $imageContent);
         $fullPath = env('IMAGE_URL').$imagePath;
         return $fullPath;

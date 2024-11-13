@@ -65,9 +65,9 @@ return [
             'replace_placeholders' => true,
         ],
 
-        'testDebug' => [
+        'lineEvent' => [
             'driver' => 'single',
-            'path' => storage_path('logs/testDebug.log'),
+            'path' => storage_path('logs/lineEvent.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ],

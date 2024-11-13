@@ -32,7 +32,7 @@ class lineController extends Controller
 
     public function lineWebHook(Request $request): JsonResponse
     {
-        Log::channel('testDebug')->info('testDebug');
+        Log::channel('lineEvent')->info($request);
         DB::beginTransaction();
         $checkSendMenu = false;
         $SEND_MENU = false;
@@ -102,7 +102,6 @@ class lineController extends Controller
                 $SEND_MENU = true;
                 if (!$sendMenu['status']) throw new \Exception($sendMenu['message']);
                 else $checkSendMenu = true;
-
             } else {
                 $rateRef = $checkRates['id'];
                 $latestRoomId = $checkRates['latestRoomId'];
@@ -125,43 +124,54 @@ class lineController extends Controller
             }
             /* ---------------------------------------------------------------------------------------------------- */
             /* สร้าง chatHistory */
-            $messages['contentType'] = $events['message']['type'];
-            switch ($events['message']['type']) {
-                case 'text':
-                    $messages['content'] = $events['message']['text'];
-                    break;
-                case 'image':
-                    $imageId = $events['message']['id'];
-                    $messages['content'] = $this->lineService->handleMedia($imageId, $TOKEN);
-                    break;
-                case 'sticker':
-                    $stickerId = $events['message']['stickerId'];
-                    $pathStart = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/';
-                    $pathEnd = '/iPhone/sticker.png';
-                    $newPath = $pathStart . $stickerId . $pathEnd;
-                    $messages['content'] = $newPath;
-                    break;
+
+            $EVENTS = $request['events'];
+            Log::info(count($EVENTS));
+            foreach ($EVENTS as $key => $E) {
+                $messages['contentType'] = $E['message']['type'];
+                switch ($E['message']['type']) {
+                    case 'text':
+                        $messages['content'] = $E['message']['text'];
+                        break;
+                    case 'image':
+                        $imageId = $E['message']['id'];
+                        $messages['content'] = $this->lineService->handleMedia($imageId, $TOKEN);
+                        break;
+                    case 'sticker':
+                        $stickerId = $E['message']['stickerId'];
+                        $pathStart = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/';
+                        $pathEnd = '/iPhone/sticker.png';
+                        $newPath = $pathStart . $stickerId . $pathEnd;
+                        $messages['content'] = $newPath;
+                        break;
                     case 'video':
-                        $videoId = $events['message']['id'];
+                        $videoId = $E['message']['id'];
                         $messages['content'] = $this->lineService->handleMedia($videoId, $TOKEN);
                         break;
-                default:
-                    $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
-            }
-            $chatHistory = new ChatHistory();
-            $chatHistory['custId'] = $custId;
-            $chatHistory['content'] = $messages['content'];
-            $chatHistory['contentType'] = $messages['contentType'];
-            $chatHistory['sender'] = json_encode($customer);
-            $chatHistory['conversationRef'] = $conversationRef;
-            $chatHistory->save();
-
-            // ถ้ามีการส่งเมนู Bot ให้ลูกค้า
-            if($SEND_MENU){
-                $bot = Employee::where('empCode','BOT')->first();
+                    default:
+                        $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
+                }
                 $chatHistory = new ChatHistory();
                 $chatHistory['custId'] = $custId;
-                $chatHistory['content'] = "สวัสดีคุณ ".$customer['custName']." เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ";
+                $chatHistory['content'] = $messages['content'];
+                $chatHistory['contentType'] = $messages['contentType'];
+                $chatHistory['sender'] = json_encode($customer);
+                $chatHistory['conversationRef'] = $conversationRef;
+                $chatHistory->save();
+                // ส่ง pusher
+                $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
+                if (!$notification['status']) {
+                    throw new \Exception('การแจ้งเตือนผิดพลาด');
+                }
+            }
+
+
+            // ถ้ามีการส่งเมนู Bot ให้ลูกค้า
+            if ($SEND_MENU) {
+                $bot = Employee::where('empCode', 'BOT')->first();
+                $chatHistory = new ChatHistory();
+                $chatHistory['custId'] = $custId;
+                $chatHistory['content'] = "สวัสดีคุณ " . $customer['custName'] . " เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ";
                 $chatHistory['contentType'] = 'text';
                 $chatHistory['sender'] = json_encode($bot);
                 $chatHistory['conversationRef'] = $conversationRef;
@@ -173,15 +183,20 @@ class lineController extends Controller
                 $chatHistory['sender'] = json_encode($bot);
                 $chatHistory['conversationRef'] = $conversationRef;
                 $chatHistory->save();
+                // ส่ง pusher
+                $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
+                if (!$notification['status']) {
+                    throw new \Exception('การแจ้งเตือนผิดพลาด');
+                }
             }
 
             // กรองการส่งต่อถ้า rate ยังอยู่ในห้อง Bot
             $R = $rate ?? $checkRates;
             if ($R['latestRoomId'] === 'ROOM00') {
                 if (!$checkSendMenu) {
-                    $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN,$TOKEN_DESCRIPTION);
-                    if ($change['status']){
-                        $bot = Employee::where('empCode','BOT')->first();
+                    $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN, $TOKEN_DESCRIPTION);
+                    if ($change['status']) {
+                        $bot = Employee::where('empCode', 'BOT')->first();
                         $chatHistory = new ChatHistory();
                         $chatHistory['custId'] = $custId;
                         $chatHistory['content'] = 'ระบบกำลังส่งต่อให้เจ้าหน้าที่ที่รับผิดชอบเพื่อเร่งดำเนินการเข้ามาสนทนา กรุณารอสักครู่';
@@ -189,20 +204,25 @@ class lineController extends Controller
                         $chatHistory['sender'] = json_encode($bot);
                         $chatHistory['conversationRef'] = $conversationRef;
                         $chatHistory->save();
-                    }else{
+                        // ส่ง pusher
+                        $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
+                        if (!$notification['status']) {
+                            throw new \Exception('การแจ้งเตือนผิดพลาด');
+                        }
+                    } else {
                         throw new \Exception($change['message']);
                     }
-                }else Log::info('$checkSendMenu is true');
+                } else Log::info('$checkSendMenu is true');
             }
 
 
             /* ---------------------------------------------------------------------------------------------------- */
             $message = 'มีข้อความใหม่เข้ามา';
             $detail = 'ไม่มีข้อผิดพลาด';
-            $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
-            if (!$notification['status']) {
-                throw new \Exception('การแจ้งเตือนผิดพลาด');
-            }
+            // $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
+            // if (!$notification['status']) {
+            //     throw new \Exception('การแจ้งเตือนผิดพลาด');
+            // }
             $status = 200;
             DB::commit();
         } catch (\Exception $e) {
