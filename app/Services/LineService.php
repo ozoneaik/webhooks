@@ -52,7 +52,7 @@ class LineService
     public function sendMenu($custId, $token): array
     {
         try {
-            $customer = Customers::where('custId', $custId)->first();
+            $customer = Customers::query()->where('custId', $custId)->first();
             $botMenus = botMenu::select('bot_menus.menuName')
                 ->join('platform_access_tokens', 'bot_menus.botTokenId', '=', 'platform_access_tokens.id')
                 ->join('customers', 'platform_access_tokens.id', '=', 'customers.platformRef')
@@ -106,13 +106,13 @@ class LineService
         }
     }
 
-    public function handleChangeRoom($content, $rate, $token): array
+    public function handleChangeRoom($content, $rate, $token,$TOKEN_DESCRIPTION): array
     {
         try {
             $custId = $rate['custId'];
-            $updateRate = Rates::where('id', $rate['id'])->first();
+            $updateRate = Rates::query()->where('id', $rate['id'])->first();
 
-            $active = ActiveConversations::where('custId', $custId)
+            $active = ActiveConversations::query()->where('custId', $custId)
                 ->where('rateRef',$rate['id'])
                 ->where('roomId', $rate['latestRoomId'])
                 ->first();
@@ -127,10 +127,10 @@ class LineService
             $active->save();
 
             DB::beginTransaction();
-            $chatRooms = ChatRooms::select('roomId', 'roomName')->get();
+            $chatRooms = ChatRooms::query()->select('roomId', 'roomName')->get();
             $text = 'พนักงานที่รับผิดชอบ';
             foreach ($chatRooms as $key => $chatRoom) {
-                $check = botMenu::where('menuName', $content)->first();
+                $check = botMenu::query()->where('menuName', $content)->first();
                 Log::info("บอทเปลี่ยนห้อง RateId >> $rate->id");
                 if ($check) { //$content === $prefix
                     Log::info('อยู่ใน menu');
@@ -151,13 +151,23 @@ class LineService
                 } else {
                     if ($key === count($chatRooms) - 1) {
                         Log::info('ไม่อยู่ใน menu');
-                        $updateRate->latestRoomId = 'ROOM01';
+                        if($TOKEN_DESCRIPTION === 'ศูนย์ซ่อม Pumpkin'){
+                            $updateRate->latestRoomId = 'ROOM02';
+                        }else{
+                            $updateRate->latestRoomId = 'ROOM01';
+                        }
+                        // $updateRate->latestRoomId = 'ROOM01';
                         $updateRate->status = 'pending';
                         $updateRate->save();
                         // ทำการสร้าง active
                         $AC = new ActiveConversations();
                         $AC['custId'] = $custId;
-                        $AC['roomId'] = 'ROOM01';
+                        if($TOKEN_DESCRIPTION === 'ศูนย์ซ่อม Pumpkin'){
+                            $AC['roomId'] = 'ROOM02';
+                        }else{
+                            $AC['roomId'] = 'ROOM01';
+                        }
+                        // $AC['roomId'] = 'ROOM01';
                         $AC['from_empCode'] = 'BOT';
                         $AC['from_roomId'] = 'ROOM00';
                         $AC['rateRef'] = $rate['id'];

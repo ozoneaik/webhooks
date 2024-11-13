@@ -39,6 +39,7 @@ class lineController extends Controller
         $status = 400;
         try {
             $TOKEN = '';
+            $TOKEN_DESCRIPTION = '';
             /* เตรียมข้อมูล */
             if (count($request['events']) <= 0) throw new \Exception('event not data');
             if ($request['events'][0]['type'] !== 'message') throw new \Exception('event type is not message');
@@ -56,9 +57,10 @@ class lineController extends Controller
                 ])->get($URL);
                 if ($response->status() === 200) {
                     $TOKEN = $token['accessToken'];
+                    $TOKEN_DESCRIPTION = $token['description'];
                     $find = true;
                     Log::info("พบ" . $response->status());
-                    $checkCustomer = Customers::where('custId', $custId)->first();
+                    $checkCustomer = Customers::query()->where('custId', $custId)->first();
                     if (!$checkCustomer) {
                         $res = $response->json();
                         $createCustomer = new Customers();
@@ -76,7 +78,7 @@ class lineController extends Controller
             if (!$find) throw new \Exception('ไม่เจอ access token ที่เข้ากันได้');
             /* ---------------------------------------------------------------------------------------------------- */
             /* ตรวจสอบว่า custId คนนี้มี rate ที่สถานะเป็น pending หรือ progress หรือไม่ ถ้าไม่ */
-            $checkRates = Rates::where('custId', $custId)->where('status', '!=', 'success')->first();
+            $checkRates = Rates::query()->where('custId', $custId)->where('status', '!=', 'success')->first();
             // ถ้าไม่เจอ Rates ที่ status เป็น pending หรือ progress ให้สร้าง Rates กับ activeConversations ใหม่
             if (!$checkRates) {
                 $rate = new Rates();
@@ -104,7 +106,7 @@ class lineController extends Controller
             } else {
                 $rateRef = $checkRates['id'];
                 $latestRoomId = $checkRates['latestRoomId'];
-                $checkActiveConversation = ActiveConversations::where('rateRef', $rateRef)
+                $checkActiveConversation = ActiveConversations::query()->where('rateRef', $rateRef)
                     ->where('roomId', $latestRoomId)
                     ->where('endTime', null)
                     ->first();
@@ -177,7 +179,7 @@ class lineController extends Controller
             $R = $rate ?? $checkRates;
             if ($R['latestRoomId'] === 'ROOM00') {
                 if (!$checkSendMenu) {
-                    $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN);
+                    $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN,$TOKEN_DESCRIPTION);
                     if ($change['status']){
                         $bot = Employee::where('empCode','BOT')->first();
                         $chatHistory = new ChatHistory();
