@@ -40,6 +40,7 @@ class LineService
             'video/ogg' => '.ogg',
             'video/avi' => '.avi',
             'video/mov' => '.mov',
+            'audio/x-m4a' => '.m4a',
             default => '.bin',
         };
 

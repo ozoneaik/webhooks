@@ -145,6 +145,13 @@ class lineController extends Controller
                         $videoId = $E['message']['id'];
                         $messages['content'] = $this->lineService->handleMedia($videoId, $TOKEN);
                         break;
+                    case 'location':
+                        $messages['content'] = $E['message']['address'];
+                        break;
+                    case 'audio' : 
+                        $audioId = $E['message']['id'];
+                        $messages['content'] = $this->lineService->handleMedia($audioId, $TOKEN);
+                        break;
                     default:
                         $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
                 }
