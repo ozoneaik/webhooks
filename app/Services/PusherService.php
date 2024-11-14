@@ -12,7 +12,6 @@ class PusherService{
 
     public function newMessage($message,$emp = false,$title) : array{
         Log::info('Message In Pusher');
-        Log::info($message['custId']);
         try {
             $AppCluster = env('PUSHER_APP_CLUSTER');
             $AppKey = env('PUSHER_APP_KEY');
@@ -21,7 +20,6 @@ class PusherService{
 
             if (!empty($message)){
                 $customer = Customers::query()->where('custId',$message['custId'])->first();
-                Log::info($customer);
                 $message['custName'] = $customer['custName'];
                 $message['avatar'] = $customer['avatar'];
                 $message['empSend'] = $emp;
@@ -35,9 +33,12 @@ class PusherService{
             }
             // $data = $this->response->Res(true,'การแจ้งเตือนสำเร็จ','ไม่พบข้อผิดพลาด');
             $data['status'] = true;
+            $data['message'] = 'test';
         }catch (\Exception|GuzzleException $e){
             // $data = $this->response->Res(false,'การแจ้งเตือนผิดพลาด',$e->getMessage());
             $data['status'] = false;
+            Log::error('เกิดข้อผิดพลาด pusher ใน method newMessage ใน PusherService');
+            $data['message'] = $e->getMessage();
         }
         return $data;
     }

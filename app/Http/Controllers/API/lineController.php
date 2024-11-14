@@ -9,7 +9,6 @@ use App\Models\Customers;
 use App\Models\Employee;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
-use App\Models\User;
 use App\Services\LineService;
 use App\Services\PusherService;
 use Carbon\Carbon;
@@ -59,7 +58,6 @@ class lineController extends Controller
                     $TOKEN = $token['accessToken'];
                     $TOKEN_DESCRIPTION = $token['description'];
                     $find = true;
-                    Log::info("พบ" . $response->status());
                     $checkCustomer = Customers::query()->where('custId', $custId)->first();
                     if (!$checkCustomer) {
                         $res = $response->json();
@@ -73,9 +71,9 @@ class lineController extends Controller
                         $customer = $createCustomer;
                     } else $customer = $checkCustomer;
                     break;
-                } else Log::info("ไม่พบ" . $response->status());
+                } else Log::info("AccessToken ไม่ตรง lineController ตรง foeach" . $response->status());
             }
-            if (!$find) throw new \Exception('ไม่เจอ access token ที่เข้ากันได้');
+            if (!$find) throw new \Exception('ไม่เจอ access token ที่เข้ากันได้ line controller');
             /* ---------------------------------------------------------------------------------------------------- */
             /* ตรวจสอบว่า custId คนนี้มี rate ที่สถานะเป็น pending หรือ progress หรือไม่ ถ้าไม่ */
             $checkRates = Rates::query()->where('custId', $custId)->where('status', '!=', 'success')->first();
@@ -126,7 +124,6 @@ class lineController extends Controller
             /* สร้าง chatHistory */
 
             $EVENTS = $request['events'];
-            Log::info(count($EVENTS));
             foreach ($EVENTS as $key => $E) {
                 $messages['contentType'] = $E['message']['type'];
                 switch ($E['message']['type']) {
@@ -161,7 +158,7 @@ class lineController extends Controller
                 // ส่ง pusher
                 $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
                 if (!$notification['status']) {
-                    throw new \Exception('การแจ้งเตือนผิดพลาด');
+                    throw new \Exception($notification['message']);
                 }
             }
 
@@ -186,7 +183,8 @@ class lineController extends Controller
                 // ส่ง pusher
                 $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
                 if (!$notification['status']) {
-                    throw new \Exception('การแจ้งเตือนผิดพลาด');
+                    // throw new \Exception('การแจ้งเตือนผิดพลาด');
+                    throw new \Exception($notification['message']);
                 }
             }
 
@@ -207,7 +205,7 @@ class lineController extends Controller
                         // ส่ง pusher
                         $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
                         if (!$notification['status']) {
-                            throw new \Exception('การแจ้งเตือนผิดพลาด');
+                            throw new \Exception($notification['message']);
                         }
                     } else {
                         throw new \Exception($change['message']);
