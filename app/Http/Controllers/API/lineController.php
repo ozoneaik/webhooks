@@ -148,7 +148,7 @@ class lineController extends Controller
                     case 'location':
                         $messages['content'] = $E['message']['address'];
                         break;
-                    case 'audio' : 
+                    case 'audio':
                         $audioId = $E['message']['id'];
                         $messages['content'] = $this->lineService->handleMedia($audioId, $TOKEN);
                         break;
@@ -175,7 +175,7 @@ class lineController extends Controller
                 $bot = Employee::where('empCode', 'BOT')->first();
                 $chatHistory = new ChatHistory();
                 $chatHistory['custId'] = $custId;
-                $chatHistory['content'] = "สวัสดีคุณ " . $customer['custName'] . " เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ";
+                $chatHistory['content'] = "สวัสดีคุณ " . $customer['custName'] . " เพื่อให้การบริการของเราดำเนินไปอย่างรวดเร็วและสะดวกยิ่งขึ้น กรุณาเลือกหัวข้อด้านล่าง เพื่อให้เจ้าหน้าที่สามารถให้ข้อมูลและบริการท่านได้อย่างถูกต้องและรวดเร็ว ขอบคุณค่ะ/ครับ";
                 $chatHistory['contentType'] = 'text';
                 $chatHistory['sender'] = json_encode($bot);
                 $chatHistory['conversationRef'] = $conversationRef;
@@ -218,6 +218,51 @@ class lineController extends Controller
                         throw new \Exception($change['message']);
                     }
                 } else Log::info('$checkSendMenu is true');
+            } elseif (($R['latestRoomId'] !== 'ROOM00') && ($R['status'] === 'pending')) {
+                // $quueChat = ActiveConversations::query()->where('roomId', $R['latestRoomId'])->orderBy('created_at', 'asc')->get();
+                $queueChat = DB::connection('call_center_database')
+                    ->table('active_conversations')
+                    ->leftJoin('rates', 'active_conversations.rateRef', '=', 'rates.id')
+                    ->where('active_conversations.roomId', $R['latestRoomId'])
+                    ->where('rates.status', '=', 'pending') // เงื่อนไข where สำหรับ rates.status
+                    ->orderBy('active_conversations.created_at', 'asc')
+                    ->get();
+
+
+                Log::info('คิวของท่าน');
+                Log::info(count($queueChat));
+                Log::info($queueChat);
+                $count = 1;
+                foreach ($queueChat as $key => $value) {
+                    if ($value->custId === $custId) {
+                        break;
+                    } else {
+                        $count++;
+                    }
+                }
+                // Log::info("คิวของท่านLOOP $count");
+                $body = [
+                    'to' => $custId,
+                    'messages' => [
+                        [
+                            'type' => 'text',
+                            'text' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่'
+                        ]
+                    ]
+                ];
+                $newChat = new ChatHistory();
+                $newChat['custId'] = $custId;
+                $newChat['content'] = 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่';
+                $newChat['contentType'] = 'text';
+                $bot = DB::connection('call_center_database')->table('users')->where('empCode', 'BOT')->first();
+                $newChat['sender'] = json_encode($bot);
+                $newChat['conversationRef'] = $conversationRef;
+                $newChat->save();
+                $sendLine = $this->lineService->linePushMessage($TOKEN, $body);
+                if (!$sendLine['status']) {
+                    Log::info('linecontroller line of 250');
+                    throw new \Exception('error');
+                }
             }
 
 
@@ -244,8 +289,8 @@ class lineController extends Controller
             DB::rollBack();
         } finally {
             return response()->json([
-                'message' => $message,
-                'detail' => $detail,
+                'message' => $message ?? 'เกิดข้อผิดพลาด',
+                'detail' => $detail ?? 'ไม่พบรายละเอียด',
             ], $status);
         }
     }

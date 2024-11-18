@@ -200,7 +200,7 @@ class LineService
         }
     }
 
-    private function linePushMessage($token, $body): array
+    public function linePushMessage($token, $body): array
     {
         try {
             $UrlPush = 'https://api.line.me/v2/bot/message/push';
@@ -215,6 +215,8 @@ class LineService
                 throw new \Exception('not successful');
             }
         } catch (\Exception $e) {
+            Log::info('error medthod line push message ใน line services');
+            Log::error($e->getMessage());
             $data['status'] = false;
             $data['message'] = $e->getMessage();
         } finally {
