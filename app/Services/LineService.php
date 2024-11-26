@@ -46,7 +46,11 @@ class LineService
 
         $imagePath = '/line-images/' . $mediaId . $extension;
         Storage::disk('public')->put($imagePath, $imageContent);
-        $fullPath = env('IMAGE_URL').$imagePath;
+        $IMAGE_URL = env('IMAGE_URL');
+        if ($IMAGE_URL === null) {
+            $IMAGE_URL = 'https://ass.pumpkin.co.th/laravel-webhooks/storage/app/public/';
+        }
+        $fullPath = $IMAGE_URL.$imagePath;
         return $fullPath;
 //        return asset('storage/' . $imagePath);
     }
