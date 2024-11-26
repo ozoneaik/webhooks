@@ -28,13 +28,30 @@ class ClearLogs extends Command
         $file = $this->option('file');
         if (!$file) {
             $this->error('please add --file=filename.log');
-        }else{
-            $logPath = storage_path("logs/$file");
-            if (file_exists($logPath)) {
-                file_put_contents($logPath,'');
-                $this->info('Logs have been cleared! File: ' . $file);
-            }else{
-                $this->error('No logs to clear!');
+        } else {
+            if ($file === 'all') {
+                $files = scandir(storage_path('logs'));
+                foreach ($files as $file) {
+                    if ($file === '.' || $file === '..') {
+                        continue;
+                    }
+                    $logPath = storage_path("logs/$file");
+                    if (file_exists($logPath) && $file !== '.gitignore') {
+                        file_put_contents($logPath, '');
+                        $this->info('Logs have been cleared! File: ' . $file);
+                    } else {
+                        $this->error('No logs to clear!');
+                    }
+                }
+                return;
+            } else {
+                $logPath = storage_path("logs/$file");
+                if (file_exists($logPath)) {
+                    file_put_contents($logPath, '');
+                    $this->info('Logs have been cleared! File: ' . $file);
+                } else {
+                    $this->error('No logs to clear!'.$file);
+                }
             }
         }
     }
