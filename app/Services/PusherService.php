@@ -11,8 +11,11 @@ class PusherService{
     protected ResponseService  $response;
 
     public function newMessage($message,$emp = false,$title) : array{
+     
         Log::info('Message In Pusher');
         try {
+            
+
             $AppCluster = env('PUSHER_APP_CLUSTER');
             $AppKey = env('PUSHER_APP_KEY');
             $AppSecret = env('PUSHER_APP_SECRET');
@@ -26,8 +29,14 @@ class PusherService{
                 $message['title'] = $title;
                 $options = ['cluster' => $AppCluster, 'useTLS' => true];
                 $pusher = new Pusher($AppKey, $AppSecret, $AppID, $options);
+                if ($pusher) {
+                    Log::info('Pusher Connected');
+                }else{
+                    Log::error('Pusher Not Connected');
+                }
                 $pusher->trigger('notifications', 'my-event', $message);
                 Log::info($message);
+              
             }else{
                 $message['title'] = $title;
             }
@@ -39,6 +48,7 @@ class PusherService{
             $data['status'] = false;
             Log::error('เกิดข้อผิดพลาด pusher ใน method newMessage ใน PusherService');
             $data['message'] = $e->getMessage();
+
         }
         return $data;
     }

@@ -6,6 +6,7 @@ use App\Models\ActiveConversations;
 use App\Models\botMenu;
 use App\Models\ChatRooms;
 use App\Models\Customers;
+use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
@@ -114,6 +115,7 @@ class LineService
 
     public function handleChangeRoom($content, $rate, $token,$TOKEN_DESCRIPTION): array
     {
+       
         try {
             $custId = $rate['custId'];
             $updateRate = Rates::query()->where('id', $rate['id'])->first();
@@ -134,9 +136,10 @@ class LineService
 
             DB::beginTransaction();
             $chatRooms = ChatRooms::query()->select('roomId', 'roomName')->get();
+            $accessTokens = PlatformAccessTokens::query()->where('accessToken',$token)->first();
             $text = 'พนักงานที่รับผิดชอบ';
             foreach ($chatRooms as $key => $chatRoom) {
-                $check = botMenu::query()->where('menuName', $content)->first();
+                $check = botMenu::query()->where('menuName', $content)->where('botTokenId',$accessTokens['id'])->first();
                 Log::info("บอทเปลี่ยนห้อง RateId >> $rate->id");
                 if ($check) { //$content === $prefix
                     Log::info('อยู่ใน menu');
