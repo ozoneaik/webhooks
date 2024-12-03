@@ -231,50 +231,50 @@ class lineController extends Controller
                     }
                 } else Log::info('$checkSendMenu is true');
             } elseif (($R['latestRoomId'] !== 'ROOM00') && ($R['status'] === 'pending')) {
-                // $quueChat = ActiveConversations::query()->where('roomId', $R['latestRoomId'])->orderBy('created_at', 'asc')->get();
-                // $queueChat = DB::connection('call_center_database')
-                //     ->table('active_conversations')
-                //     ->leftJoin('rates', 'active_conversations.rateRef', '=', 'rates.id')
-                //     ->where('active_conversations.roomId', $R['latestRoomId'])
-                //     ->where('rates.status', '=', 'pending') // เงื่อนไข where สำหรับ rates.status
-                //     ->orderBy('active_conversations.created_at', 'asc')
-                //     ->get();
+                $quueChat = ActiveConversations::query()->where('roomId', $R['latestRoomId'])->orderBy('created_at', 'asc')->get();
+                $queueChat = DB::connection('call_center_database')
+                    ->table('active_conversations')
+                    ->leftJoin('rates', 'active_conversations.rateRef', '=', 'rates.id')
+                    ->where('active_conversations.roomId', $R['latestRoomId'])
+                    ->where('rates.status', '=', 'pending') // เงื่อนไข where สำหรับ rates.status
+                    ->orderBy('active_conversations.created_at', 'asc')
+                    ->get();
 
 
-                // Log::info('คิวของท่าน');
-                // Log::info(count($queueChat));
-                // Log::info($queueChat);
-                // $count = 1;
-                // foreach ($queueChat as $key => $value) {
-                //     if ($value->custId === $custId) {
-                //         break;
-                //     } else {
-                //         $count++;
-                //     }
-                // }
-                // // Log::info("คิวของท่านLOOP $count");
-                // $body = [
-                //     'to' => $custId,
-                //     'messages' => [
-                //         [
-                //             'type' => 'text',
-                //             'text' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่'
-                //         ]
-                //     ]
-                // ];
-                // $newChat = new ChatHistory();
-                // $newChat['custId'] = $custId;
-                // $newChat['content'] = 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่';
-                // $newChat['contentType'] = 'text';
-                // $bot = DB::connection('call_center_database')->table('users')->where('empCode', 'BOT')->first();
-                // $newChat['sender'] = json_encode($bot);
-                // $newChat['conversationRef'] = $conversationRef;
-                // $newChat->save();
-                // $sendLine = $this->lineService->linePushMessage($TOKEN, $body);
-                // if (!$sendLine['status']) {
-                //     Log::info('linecontroller line of 250');
-                //     throw new \Exception('error');
-                // }
+                Log::info('คิวของท่าน');
+                Log::info(count($queueChat));
+                Log::info($queueChat);
+                $count = 1;
+                foreach ($queueChat as $key => $value) {
+                    if ($value->custId === $custId) {
+                        break;
+                    } else {
+                        $count++;
+                    }
+                }
+                // Log::info("คิวของท่านLOOP $count");
+                $body = [
+                    'to' => $custId,
+                    'messages' => [
+                        [
+                            'type' => 'text',
+                            'text' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่'
+                        ]
+                    ]
+                ];
+                $newChat = new ChatHistory();
+                $newChat['custId'] = $custId;
+                $newChat['content'] = 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่';
+                $newChat['contentType'] = 'text';
+                $bot = DB::connection('call_center_database')->table('users')->where('empCode', 'BOT')->first();
+                $newChat['sender'] = json_encode($bot);
+                $newChat['conversationRef'] = $conversationRef;
+                $newChat->save();
+                $sendLine = $this->lineService->linePushMessage($TOKEN, $body);
+                if (!$sendLine['status']) {
+                    Log::info('linecontroller line of 250');
+                    throw new \Exception('error');
+                }
             }
 
 
