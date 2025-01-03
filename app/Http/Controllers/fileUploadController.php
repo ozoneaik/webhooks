@@ -12,7 +12,7 @@ class fileUploadController extends Controller
     public function fileUpload(Request $request): JsonResponse
     {
         Log::info(request()->all());
-        $request->validate(['file' => 'required|file|mimes:jpeg,jpg,png,gif,mp4,mkv,mov'], ['file.required' => 'กรุณาอัปโหลดไฟล์']);
+        $request->validate(['file' => 'required|file|mimes:jpeg,jpg,png,gif,mp4,mkv,mov,pdf'], ['file.required' => 'กรุณาอัปโหลดไฟล์']);
         // รับไฟล์จาก request
         $file = $request->file('file');
         $fileName = $file->getClientOriginalName();
