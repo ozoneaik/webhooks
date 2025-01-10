@@ -7,6 +7,7 @@ use App\Models\ActiveConversations;
 use App\Models\ChatHistory;
 use App\Models\Customers;
 use App\Models\Employee;
+use App\Models\Keyword;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
 use App\Services\LineService;
@@ -31,6 +32,7 @@ class lineController extends Controller
 
     public function lineWebHook(Request $request): JsonResponse
     {
+        $defalutRoom = 'ROOM00';
         Log::channel('lineEvent')->info($request);
         DB::beginTransaction();
         $checkSendMenu = false;
@@ -45,8 +47,7 @@ class lineController extends Controller
                 throw new \Exception('event type is not message');
             }
             $EVENTS = $request['events'];
-
-            if ($request['events'][0]['type'] === 'postback') {
+            if ($request['events'][0]['type'] === 'postback') { // ส่งค้ากรอกแบบประเมินมา
                 Log::channel('lineEvent')->info($request['events'][0]['postback']['data']);
                 $postbackData = $request['events'][0]['postback']['data'];
                 $dataParts = explode(',', $postbackData);
@@ -59,7 +60,7 @@ class lineController extends Controller
                 $status = 200;
                 $message = 'มีข้อความใหม่เข้ามา';
                 $detail = 'ไม่มีข้อผิดพลาด';
-            } else {
+            } else { // ส่งข้อความมาปรกติ
                 $events = $request['events'][0];
                 $custId = $events['source']['userId'];
                 $customer = '';
@@ -97,26 +98,74 @@ class lineController extends Controller
                 $checkRates = Rates::query()->where('custId', $custId)->where('status', '!=', 'success')->first();
                 // ถ้าไม่เจอ Rates ที่ status เป็น pending หรือ progress ให้สร้าง Rates กับ activeConversations ใหม่
                 if (!$checkRates) {
+                    $notCreateCase = false;
                     //ตรวจก่อนว่าลูกค้าส่งอะไรเข้ามา
                     foreach ($EVENTS as $key => $E) {
-                        $notCreateCase = false;
+                        
                         if ($E['message']['type'] === 'sticker') {
                             $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
                             $conversationRef = $latestAcId['id'];
                             $notCreateCase = true;
                         } else if ($E['message']['type'] === 'text') {
                             $target = $E['message']['text'];
-                            $keywords = DB::connection('call_center_database')
-                                ->table('keywords')
-                                ->where('name', 'like', "%$target%")
-                                ->first();
-                               
-                            if($keywords && $keywords->event === true) { //กรณีที่ key สำหรับเคสที่จบแล้ว
+                                $keywords = Keyword::where('name', 'like', "%$target%")->first();
+                                Log::info($keywords);
+                            if ($keywords && $keywords->event === true) { //กรณีที่ key สำหรับเคสที่จบแล้ว
                                 $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
                                 $conversationRef = $latestAcId['id'];
                                 $notCreateCase = true;
-                            }else if($keywords && $keywords->event === false){ //กรณีที่ key ส่งไปยังห้องอื่น
-                                $notCreateCase = false;
+                            } else if ($keywords && $keywords->event === false) {   //กรณีที่ key ส่งไปยังห้องอื่น
+                                $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
+                                Log::info('เข้าเงื่อนไข 2');
+                                    $getRate = Rates::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
+                                    Log::info($getRate);
+                                
+                                if($getRate['created_at'] >= Carbon::now()->subHour(12)){
+                                    Log::info('เข้า if');
+                                    $cRate = new Rates();
+                                    $cRate['custId'] = $custId;
+                                    $cRate['rate'] = 0;
+                                    $cRate['status'] = 'pending';
+                                    $cRate['latestRoomId'] = $keywords->redirectTo;
+                                    $cRate->save();
+                                    $cAC = new ActiveConversations();
+                                    $cAC['custId'] = $custId;
+                                    $cAC['roomId'] = $keywords->redirectTo;
+                                    $cAC['rateRef'] = $cRate->id;
+                                    $cAC->save();
+                                    $conversationRef = $cAC['id'];
+                                    $notCreateCase = true;
+                                }else{
+                                    Log::info('ไม่เข้า if');
+                                }
+                                // สร้าง สร้าง ใหม่
+                            }else{
+                                Log::info($notCreateCase);
+                                Log::info($notCreateCase === false ? 'notCreateCase is false' : 'notCreateCase is true');
+                                $getRate = Rates::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
+                                Log::info($getRate);
+                                Log::info('getRate');
+                                if ($getRate['created_at'] >= Carbon::now()->subHour(12)) { // ทักเข้ามาภายใน 12 ชั่วโมง
+                                    Log::info('ไม่มีใน และ ทักเข้ามาภายใน 12 ชั่วโมง');
+                                    $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
+                                    $createAC = new ActiveConversations();
+                                    $createAC['custId'] = $custId;
+                                    $createAC['roomId'] = $latestAcId->roomId;
+                                    $createAC['empCode'] = $latestAcId->empCode;
+                                    $createAC['receiveAt'] = Carbon::now();
+                                    $createAC['startTime'] = Carbon::now();
+                                    $createAC['rateRef'] = $getRate['id'];
+                                    $createAC->from_roomId = $latestAcId->from_roomId;
+                                    $createAC->from_empCode = $latestAcId->from_empCode;
+                                    $getRate['status'] = 'progress';
+                                    DB::connection('call_center_database')
+                                        ->table('rates')
+                                        ->where('id', $getRate->id)
+                                        ->update(['status' => 'progress']);
+                                    $createAC->save();
+                                    $conversationRef = $createAC['id'];
+                                    $notCreateCase = true;
+                                }
                             }
                         }
                     }
@@ -125,11 +174,11 @@ class lineController extends Controller
                         $rate['custId'] = $custId;
                         $rate['rate'] = 0;
                         $rate['status'] = 'progress';
-                        $rate['latestRoomId'] = 'ROOM00';
+                        $rate['latestRoomId'] = $defalutRoom;
                         $rate->save();
                         $activeConversation = new ActiveConversations();
                         $activeConversation['custId'] = $custId;
-                        $activeConversation['roomId'] = 'ROOM00';
+                        $activeConversation['roomId'] = $defalutRoom;
                         $activeConversation['empCode'] = 'BOT';
                         $activeConversation['receiveAt'] = Carbon::now();
                         $activeConversation['startTime'] = Carbon::now();
@@ -144,6 +193,7 @@ class lineController extends Controller
                         else $checkSendMenu = true;
                     }
                 } else {
+                    Log::info('not create case is true');
                     $rateRef = $checkRates['id'];
                     $latestRoomId = $checkRates['latestRoomId'];
                     $checkActiveConversation = ActiveConversations::query()->where('rateRef', $rateRef)
