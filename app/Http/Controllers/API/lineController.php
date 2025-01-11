@@ -30,6 +30,36 @@ class lineController extends Controller
         $this->pusherService = $pusherService;
     }
 
+    private function storeRate($custId,$status,$latestRoomId){
+        $rate = new Rates();
+        $rate['custId'] = $custId;
+        $rate['rate'] = 0;
+        $rate['status'] = 'progress';
+        $rate['latestRoomId'] = 'ROOM00';
+        $rate->save();
+        return $rate;
+    }
+
+    private function storeAC ($rateId,$custId, $roomId){
+        $activeConversation = new ActiveConversations();
+        $activeConversation['custId'] = $custId;
+        $activeConversation['roomId'] = $roomId;
+        $activeConversation['rateRef'] = $rateId;
+        $activeConversation->save();
+        return $activeConversation;
+    }
+
+    private function storeChatHistory($custId,$content,$contentType,$sender,$conversationRef){
+        $chatHistory = new ChatHistory();
+        $chatHistory['custId'] = $custId;
+        $chatHistory['content'] = $content;
+        $chatHistory['contentType'] = $contentType;
+        $chatHistory['sender'] = $sender;
+        $chatHistory['conversationRef'] = $conversationRef;
+        $chatHistory->save();
+        return $chatHistory;
+    }
+
     public function lineWebHook(Request $request): JsonResponse
     {
         $defalutRoom = 'ROOM00';
@@ -48,7 +78,6 @@ class lineController extends Controller
             }
             $EVENTS = $request['events'];
             if ($request['events'][0]['type'] === 'postback') { // ส่งค้ากรอกแบบประเมินมา
-                Log::channel('lineEvent')->info($request['events'][0]['postback']['data']);
                 $postbackData = $request['events'][0]['postback']['data'];
                 $dataParts = explode(',', $postbackData);
                 // สร้างตัวแปร feedback และ rateId
@@ -96,32 +125,25 @@ class lineController extends Controller
                 /* ---------------------------------------------------------------------------------------------------- */
                 /* ตรวจสอบว่า custId คนนี้มี rate ที่สถานะเป็น pending หรือ progress หรือไม่ ถ้าไม่ */
                 $checkRates = Rates::query()->where('custId', $custId)->where('status', '!=', 'success')->first();
-                // ถ้าไม่เจอ Rates ที่ status เป็น pending หรือ progress ให้สร้าง Rates กับ activeConversations ใหม่
-                if (!$checkRates) {
+                if (!$checkRates) { // กรณีที่ไม่มี rate ที่สถานะเป็น pending หรือ progress
                     $notCreateCase = false;
                     //ตรวจก่อนว่าลูกค้าส่งอะไรเข้ามา
                     foreach ($EVENTS as $key => $E) {
-                        
                         if ($E['message']['type'] === 'sticker') {
                             $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
                             $conversationRef = $latestAcId['id'];
                             $notCreateCase = true;
-                        } else if ($E['message']['type'] === 'text') {
+                        } else if ($E['message']['type'] === 'text') { // กรณีที่ลูกค้าส่งข้อความมาเป็น text
                             $target = $E['message']['text'];
-                                $keywords = Keyword::where('name', 'like', "%$target%")->first();
-                                Log::info($keywords);
-                            if ($keywords && $keywords->event === true) { //กรณีที่ key สำหรับเคสที่จบแล้ว
+                            $keywords = Keyword::where('name', 'like', "%$target%")->first();
+                            if ($keywords && $keywords->event === true) { // ลูกค้าส่งข้อความเขาแล้วมี keyword ตรงตามที่เรากำหนด และ event สำหรับเคสที่จบแล้ว
                                 $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
                                 $conversationRef = $latestAcId['id'];
                                 $notCreateCase = true;
-                            } else if ($keywords && $keywords->event === false) {   //กรณีที่ key ส่งไปยังห้องอื่น
+                            } else if ($keywords && $keywords->event === false) { // ลูกค้าส่งข้อความเข้าแล้วมี keyword ตรงตามที่เรากำหนด และ event คือส่งไปยังห้องต่างๆ
                                 $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('created_at', 'desc')->first();
-                                Log::info('เข้าเงื่อนไข 2');
-                                    $getRate = Rates::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
-                                    Log::info($getRate);
-                                
-                                if($getRate['created_at'] >= Carbon::now()->subHour(12)){
-                                    Log::info('เข้า if');
+                                $getRate = Rates::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
+                                if ($getRate['created_at'] >= Carbon::now()->subHour(12)) { // ทักเข้ามาภายใน 12 ชั่วโมง
                                     $cRate = new Rates();
                                     $cRate['custId'] = $custId;
                                     $cRate['rate'] = 0;
@@ -135,18 +157,10 @@ class lineController extends Controller
                                     $cAC->save();
                                     $conversationRef = $cAC['id'];
                                     $notCreateCase = true;
-                                }else{
-                                    Log::info('ไม่เข้า if');
-                                }
-                                // สร้าง สร้าง ใหม่
-                            }else{
-                                Log::info($notCreateCase);
-                                Log::info($notCreateCase === false ? 'notCreateCase is false' : 'notCreateCase is true');
+                                } else $notCreateCase = false; // ทักเข้ามาเกิน 12 ชั่วโมง
+                            } else { // ลูกค้าส่งข้อความเขาแล้วไม่มี keyword ตรงตามที่เรากำหนด
                                 $getRate = Rates::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
-                                Log::info($getRate);
-                                Log::info('getRate');
-                                if ($getRate['created_at'] >= Carbon::now()->subHour(12)) { // ทักเข้ามาภายใน 12 ชั่วโมง
-                                    Log::info('ไม่มีใน และ ทักเข้ามาภายใน 12 ชั่วโมง');
+                                if ($getRate['created_at'] >= Carbon::now()->subHour(12)) { //ทักเข้ามาภายใน 12 ชั่วโมง
                                     $latestAcId = ActiveConversations::query()->where('custId', $custId)->orderBy('id', 'desc')->first();
                                     $createAC = new ActiveConversations();
                                     $createAC['custId'] = $custId;
@@ -165,7 +179,7 @@ class lineController extends Controller
                                     $createAC->save();
                                     $conversationRef = $createAC['id'];
                                     $notCreateCase = true;
-                                }
+                                } else $notCreateCase = false; // ทักเข้ามาเกิน 12 ชั่วโมง
                             }
                         }
                     }
@@ -185,7 +199,6 @@ class lineController extends Controller
                         $activeConversation['rateRef'] = $rate['id'];
                         $activeConversation->save();
                         $conversationRef = $activeConversation['id'];
-
                         // ส่งเมนูตัวเลือกให้ลูกค้าเลือก
                         $sendMenu = $this->lineService->sendMenu($custId, $TOKEN);
                         $SEND_MENU = true;
@@ -204,19 +217,14 @@ class lineController extends Controller
                         $conversationRef = $checkActiveConversation['id'];
                         // ถ้าเช็คแล้วว่า มีการรับเรื่อง (receiveAt) แล้วยังไม่มี startTime ให้ startTime = carbon::now()
                         if (!empty($checkActiveConversation['receiveAt'])) {
-                            if (empty($checkActiveConversation['startTime'])) {
-                                $checkActiveConversation['startTime'] = carbon::now();
-                            }
-                            if ($checkActiveConversation->save()) {
-                                $status = 200;
-                            } else throw new \Exception('เจอปัญหา startTime ไม่ได้');
+                            if (empty($checkActiveConversation['startTime'])) $checkActiveConversation['startTime'] = carbon::now();
+                            if ($checkActiveConversation->save()) $status = 200;
+                            else throw new \Exception('เจอปัญหา startTime ไม่ได้');
                         }
                     } else throw new \Exception('ไม่พบ conversationRef จากตาราง ActiveConversations');
                 }
                 /* ---------------------------------------------------------------------------------------------------- */
                 /* สร้าง chatHistory */
-
-
                 foreach ($EVENTS as $key => $E) {
                     $messages['contentType'] = $E['message']['type'];
                     switch ($E['message']['type']) {
@@ -255,18 +263,10 @@ class lineController extends Controller
                     $chatHistory['sender'] = json_encode($customer);
                     $chatHistory['conversationRef'] = $conversationRef;
                     $chatHistory->save();
-
                     // ส่ง pusher
                     $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
-
-                    if (!$notification['status']) {
-                        throw new \Exception($notification['message']);
-                    }
+                    if (!$notification['status']) throw new \Exception($notification['message']);
                 }
-
-
-
-
                 // ถ้ามีการส่งเมนู Bot ให้ลูกค้า
                 Log::info('tes sendmenu', ['SEND_MENU' => $SEND_MENU]);
                 if ($SEND_MENU) {
@@ -287,18 +287,11 @@ class lineController extends Controller
                     $chatHistory->save();
                     // ส่ง pusher
                     $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
-                    if (!$notification['status']) {
-                        // throw new \Exception('การแจ้งเตือนผิดพลาด');
-                        throw new \Exception($notification['message']);
-                    }
+                    if (!$notification['status']) throw new \Exception($notification['message']);
                 }
-
                 // กรองการส่งต่อถ้า rate ยังอยู่ในห้อง Bot
                 $R = $rate ?? $checkRates;
-
-
                 if ($R['latestRoomId'] === 'ROOM00') {
-
                     if (!$checkSendMenu) {
                         $change = $this->lineService->handleChangeRoom($chatHistory['content'], $R, $TOKEN, $TOKEN_DESCRIPTION);
                         if ($change['status']) {
@@ -310,14 +303,9 @@ class lineController extends Controller
                             $chatHistory['sender'] = json_encode($bot);
                             $chatHistory['conversationRef'] = $conversationRef;
                             $chatHistory->save();
-                            // ส่ง pusher
                             $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
-                            if (!$notification['status']) {
-                                throw new \Exception($notification['message']);
-                            }
-                        } else {
-                            throw new \Exception($change['message']);
-                        }
+                            if (!$notification['status']) throw new \Exception($notification['message']);
+                        } else throw new \Exception($change['message']);
                     } else Log::info('$checkSendMenu is true');
                 } elseif (($R['latestRoomId'] !== 'ROOM00') && ($R['status'] === 'pending')) {
                     $queueChat = DB::connection('call_center_database')
@@ -327,11 +315,6 @@ class lineController extends Controller
                         ->where('rates.status', '=', 'pending') // เงื่อนไข where สำหรับ rates.status
                         ->orderBy('active_conversations.created_at', 'asc')
                         ->get();
-
-
-                    Log::info('คิวของท่าน');
-                    Log::info(count($queueChat));
-                    Log::info($queueChat);
                     $countProgress = DB::connection('call_center_database')
                         ->table('rates')
                         ->select('id')
@@ -340,21 +323,15 @@ class lineController extends Controller
                         ->count();
                     $count = $countProgress + 1;
                     foreach ($queueChat as $key => $value) {
-                        if ($value->custId === $custId) {
-                            break;
-                        } else {
-                            $count++;
-                        }
+                        if ($value->custId === $custId) break;
+                        else $count++;
                     }
-                    // Log::info("คิวของท่านLOOP $count");
                     $body = [
                         'to' => $custId,
-                        'messages' => [
-                            [
-                                'type' => 'text',
-                                'text' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่'
-                            ]
-                        ]
+                        'messages' => [[
+                            'type' => 'text',
+                            'text' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่'
+                        ]]
                     ];
                     $newChat = new ChatHistory();
                     $newChat['custId'] = $custId;
@@ -365,20 +342,11 @@ class lineController extends Controller
                     $newChat['conversationRef'] = $conversationRef;
                     $newChat->save();
                     $sendLine = $this->lineService->linePushMessage($TOKEN, $body);
-                    if (!$sendLine['status']) {
-                        Log::info('linecontroller line of 250');
-                        throw new \Exception('error');
-                    }
+                    if (!$sendLine['status']) throw new \Exception('error');
                 }
-
-
                 /* ---------------------------------------------------------------------------------------------------- */
                 $message = 'มีข้อความใหม่เข้ามา';
                 $detail = 'ไม่มีข้อผิดพลาด';
-                // $notification = $this->pusherService->newMessage($chatHistory, false, 'มีข้อความใหม่เข้ามา');
-                // if (!$notification['status']) {
-                //     throw new \Exception('การแจ้งเตือนผิดพลาด');
-                // }
                 $status = 200;
             }
             DB::commit();
