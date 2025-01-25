@@ -11,8 +11,11 @@ use App\Models\Employee;
 use App\Models\Keyword;
 use App\Models\PlatformAccessTokens;
 use App\Models\Rates;
+use App\Services\ActiveConversationService;
+use App\Services\ChatHistoryService;
 use App\Services\CustomerService;
 use App\Services\LineService;
+use App\Services\PusherService;
 use App\Services\RateService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -25,13 +28,25 @@ class testController extends Controller
     protected RateService $rateService;
     protected CustomerService $customerService;
     protected LineService $lineService;
+    protected ChatHistoryService $chatHistoryService;
+    protected ActiveConversationService $activeConversationService;
+    protected PusherService $pusherService;
 
-    public function __construct(RateService $rateService, CustomerService $customerService, LineService $lineService)
+    public function __construct(
+        RateService               $rateService,
+        CustomerService           $customerService,
+        LineService               $lineService,
+        ChatHistoryService        $chatHistoryService,
+        ActiveConversationService $activeConversationService,
+        PusherService             $pusherService
+    )
     {
         $this->rateService = $rateService;
         $this->customerService = $customerService;
         $this->lineService = $lineService;
-
+        $this->chatHistoryService = $chatHistoryService;
+        $this->activeConversationService = $activeConversationService;
+        $this->pusherService = $pusherService;
     }
 
     public function test(Request $request)
@@ -65,7 +80,7 @@ class testController extends Controller
                                     $customer = $this->customerService->store(
                                         $event['source']['userId'],
                                         $response['displayName'],
-                                        "ทักมากไลน์ $token->descrtiption",
+                                        "ทักมากไลน์ $token->description",
                                         $response['pictureUrl'] ?? ' ',
                                         $token->id
                                     );
@@ -75,7 +90,7 @@ class testController extends Controller
                             }
                                 !$customer ?? throw new \Exception('ไม่พบข้อมูลลูกค้า');
                         } else {
-                            $TOKEN = PlatformAccessTokens::where('id', $customer->platformRef)->first()->accessToken;
+                            $TOKEN = PlatformAccessTokens::query()->where('id', $customer->platformRef)->first()->accessToken;
                         }
                         // เช็คว่ามี rates เป็นสถานะ success หรือไม่
                         $RATE = Rates::where('custId', $customer->custId)->orderBy('id', 'desc')->first();
@@ -86,28 +101,14 @@ class testController extends Controller
                                 if ($message['type'] === 'sticker') { // หากข้อความที่ทักเข้ามาเป็น sticker
                                     // ให้เก้บแค่ chat พร้อมอ้างอิง AcId ก่อนหน้า
                                     $acId = ActiveConversations::where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
-                                    $pathStart = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/';
-                                    $pathEnd = '/iPhone/sticker.png';
-                                    ChatHistory::query()->create([
-                                        'custId' => $customer->custId,
-                                        'content' => $pathStart . $message['stickerId'] . $pathEnd,
-                                        'contentType' => 'sticker',
-                                        'sender' => $customer->toJson(),
-                                        'conversationRef' => $acId->id
-                                    ]);
+                                    $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $acId->id, $TOKEN);
                                 } elseif ($message['type'] === 'text') { // หากข้อความที่ทักเข้ามาเป็น text
                                     $keyword = Keyword::where('name', 'LIKE', '%' . $message['text'] . '%')->first();
                                     if ($keyword) {
                                         if ($keyword->event === true) {
                                             // ให้เก็บแค่ chat พร้อมอ้างอิง AcId ก่อนหน้า
                                             $acId = ActiveConversations::where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
-                                            ChatHistory::query()->create([
-                                                'custId' => $customer->custId,
-                                                'content' => $message['text'],
-                                                'contentType' => 'text',
-                                                'sender' => $customer->toJson(),
-                                                'conversationRef' => $acId->id
-                                            ]);
+                                            $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $acId->id, $TOKEN);
                                         } else {
                                             // สร้าง Rate ใหม่ โดย อ้างอิงจาก roomId
                                             $newRate = Rates::query()->create([
@@ -122,13 +123,7 @@ class testController extends Controller
                                                 'rateRef' => $newRate->id
                                             ]);
                                             // สร้าง chat
-                                            ChatHistory::query()->create([
-                                                'custId' => $customer->custId,
-                                                'content' => $message['text'],
-                                                'contentType' => 'text',
-                                                'sender' => $customer->toJson(),
-                                                'conversationRef' => $newAc->id
-                                            ]);
+                                            $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $newAc->id, $TOKEN);
                                         }
                                     } else {
                                         // สร้าง Rate ใหม่ โดย copy จาก Rate ก่อนหน้า แล้ว สร้าง Ac ใหม่โดย copy จาก Ac ก่อนหน้า
@@ -144,13 +139,7 @@ class testController extends Controller
                                             'rateRef' => $newRate->id
                                         ]);
                                         // สร้าง chat
-                                        ChatHistory::query()->create([
-                                            'custId' => $customer->custId,
-                                            'content' => $message['text'],
-                                            'contentType' => 'text',
-                                            'sender' => json_encode($customer),
-                                            'conversationRef' => $newAc->id
-                                        ]);
+                                        $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $newAc->id, $TOKEN);
 
                                     }
                                 } else {
@@ -166,26 +155,14 @@ class testController extends Controller
                                         'rateRef' => $newRate->id
                                     ]);
                                     // สร้าง chat
-                                    ChatHistory::query()->create([
-                                        'custId' => $customer->custId,
-                                        'content' => 'ส่งอย่างอื่นมาที่ไม่ใช่ text',
-                                        'contentType' => 'text',
-                                        'sender' => json_encode($customer),
-                                        'conversationRef' => $newAc->id
-                                    ]);
+                                    $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $newAc->id, $TOKEN);
                                 }
 
 
-                            } elseif (($RATE['status'] === 'pending') || ($RATE['status'] === 'progress')) {
+                            } else {
                                 if ($RATE['status'] === 'pending') {
                                     $acId = ActiveConversations::query()->where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
-                                    ChatHistory::query()->create([
-                                        'custId' => $customer->custId,
-                                        'content' => $message['text'],
-                                        'contentType' => 'text',
-                                        'sender' => $customer->toJson(),
-                                        'conversationRef' => $acId->id
-                                    ]);
+                                    $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $acId->id, $TOKEN);
                                     $queueChat = DB::connection('call_center_database')
                                         ->table('active_conversations')
                                         ->leftJoin('rates', 'active_conversations.rateRef', '=', 'rates.id')
@@ -212,17 +189,15 @@ class testController extends Controller
                                         ]]
                                     ];
                                     $Bot = Employee::query()->where('empCode', 'BOT')->first();
-                                    ChatHistory::query()->create([
-                                        'custId' => $customer->custId,
-                                        'content' => 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่',
-                                        'contentType' => 'text',
-                                        'sender' => $Bot->toJson(),
-                                        'conversationRef' => $acId->id
-                                    ]);
+                                    $botSendMenuContent['type'] = 'text';
+                                    $botSendMenuContent['text'] = 'คิวของท่านคือ ' . $count . ' คิว กรุณารอสักครู่';
+                                    $this->chatHistoryService->store($customer->custId, $botSendMenuContent, $Bot->toJson(), $acId->id, $TOKEN);
                                     $this->lineService->linePushMessage($TOKEN, $body);
                                 } else {
                                     $matchMenu = false;
                                     if ($RATE->latestRoomId === 'ROOM00') {
+                                        // อัพ AC ตรง endTime และ TotalTime
+                                        $oldAc = $this->activeConversationService->updateEndTime($RATE, $TOKEN);
                                         $platform = PlatformAccessTokens::query()->where('id', $customer->platformRef)->first();
                                         $botMenu = botMenu::where('botTokenId', $platform->id)->get();
                                         if ($message['type'] === 'text') {
@@ -230,20 +205,14 @@ class testController extends Controller
                                                 if ($menu->menuName === $message['text']) {
                                                     $RATE->latestRoomId = $menu->roomId;
                                                     $RATE->status = 'pending';
-                                                    $newAc = ActiveConversations::query()->create([
+                                                    ActiveConversations::query()->create([
                                                         'custId' => $customer->custId,
                                                         'from_empCode' => 'BOT',
                                                         'from_roomId' => 'ROOM00',
                                                         'roomId' => $menu->roomId,
                                                         'rateRef' => $RATE->id
                                                     ]);
-                                                    ChatHistory::query()->create([
-                                                        'custId' => $customer->custId,
-                                                        'content' => $message['text'],
-                                                        'contentType' => 'text',
-                                                        'sender' => $customer->toJson(),
-                                                        'conversationRef' => $newAc->id
-                                                    ]);
+                                                    $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $oldAc->id, $TOKEN);
                                                     $RATE->save();
                                                     $matchMenu = true;
                                                     break;
@@ -267,41 +236,24 @@ class testController extends Controller
                                                 'roomId' => $RATE->latestRoomId,
                                                 'rateRef' => $RATE->id
                                             ]);
-                                            ChatHistory::query()->create([
-                                                'custId' => $customer->custId,
-                                                'content' => $message['text'],
-                                                'contentType' => 'text',
-                                                'sender' => $customer->toJson(),
-                                                'conversationRef' => $newAc->id
-                                            ]);
-                                            $bot = Employee::query()->where('empCode','BOT')->first();
-                                            ChatHistory::query()->create([
-                                                'custId' => $customer->custId,
-                                                'content' => 'ระบบกำลังส่งต่อให้เจ้าหน้าที่ที่รับผิดชอบเพื่อเร่งดำเนินการเข้ามาสนทนา กรุณารอสักครู่',
-                                                'contentType' => 'text',
-                                                'sender' => $bot->toJson(),
-                                                'conversationRef' => $newAc->id
-                                            ]);
+                                            $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $oldAc->id, $TOKEN);
                                         }
+                                        $bot = Employee::query()->where('empCode', 'BOT')->first();
+                                        $botSendMenuContent['type'] = 'text';
+                                        $botSendMenuContent['text'] = 'ระบบกำลังส่งต่อให้เจ้าหน้าที่ที่รับผิดชอบเพื่อเร่งดำเนินการเข้ามาสนทนา กรุณารอสักครู่';
+                                        $this->chatHistoryService->store($customer->custId, $botSendMenuContent, $bot->toJson(), $oldAc->id, $TOKEN);
                                     } else {
                                         $acId = ActiveConversations::query()->where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
-                                        ChatHistory::query()->create([
-                                            'custId' => $customer->custId,
-                                            'content' => $message['text'],
-                                            'contentType' => 'text',
-                                            'sender' => $customer->toJson(),
-                                            'conversationRef' => $acId->id
-                                        ]);
+                                        $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $acId->id, $TOKEN);
                                     }
                                 }
 
 
-                            } else {
-
                             }
                         } else {
+                            $bot = Employee::query()->where('empCode', 'BOT')->first();
                             // สร้าง Rate ใหม่ พร้อมส่งเมนู บอท
-                            $newRate = Rates::query()->create([
+                            $RATE = Rates::query()->create([
                                 'custId' => $customer->custId,
                                 'status' => 'progress',
                                 'rate' => 0,
@@ -313,17 +265,25 @@ class testController extends Controller
                                 'startTime' => Carbon::now(),
                                 'empCode' => 'BOT',
                                 'roomId' => 'ROOM00',
-                                'rateRef' => $newRate->id
+                                'rateRef' => $RATE->id
                             ]);
-                            ChatHistory::query()->create([
-                                'custId' => $customer->custId,
-                                'content' => 'ส่งข้อความเข้ามา',
-                                'contentType' => 'text',
-                                'sender' => $customer->toJson(),
-                                'conversationRef' => $newAc->id
-                            ]);
-                            $sendMenu = $this->lineService->sendMenu($customer->custId, $TOKEN);
+                            $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $newAc->id, $TOKEN);
+                            $botSendMenuContent['type'] = 'text';
+                            $text = "สวัสดีคุณ $customer->custName เพื่อให้การบริการที่รวดเร็ว กรุณาเลือกหัวด้านล่างเพื่อส่งต่อให้เจ้าหน้าที่เพื่อมาบริการท่านต่อไป  ขอบคุณครับ/ค่ะ
+BOT ทำการส่งเมนู 📃";
+                            $botSendMenuContent['text'] = $text;
+                            $this->chatHistoryService->store($customer->custId, $botSendMenuContent, $bot->toJson(), $newAc->id, $TOKEN);
+                            $this->lineService->sendMenu($customer->custId, $TOKEN);
                         }
+                        // ส่ง event ไปยัง pusher
+                        $ac = ActiveConversations::query()->where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
+                        $chat = ChatHistory::query()
+                            ->select(['id','content', 'contentType', 'sender', 'created_at'])
+                            ->where('custId', $customer->custId)
+                            ->orderBy('id', 'desc')->first();
+                        $chat->sender = json_decode($chat->sender);
+                        $this->pusherService->sendNotification($RATE, $ac, $chat, $customer);
+
                     } else {
                         throw new \Exception('events ไม่ทราบ type');
                     }
@@ -335,7 +295,12 @@ class testController extends Controller
                 'message' => 'success',
             ]);
         } catch (\Exception $e) {
-            Log::channel('lineEvent')->info($e->getMessage());
+            Log::channel('lineEvent')->info(sprintf(
+                'Error: %s in %s on line %d',
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
             return response()->json([
                 'message' => $e->getMessage(),
             ]);

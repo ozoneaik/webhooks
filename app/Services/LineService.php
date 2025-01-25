@@ -115,7 +115,7 @@ class LineService
 
     public function handleChangeRoom($content, $rate, $token,$TOKEN_DESCRIPTION): array
     {
-       
+
         try {
             $custId = $rate['custId'];
             $updateRate = Rates::query()->where('id', $rate['id'])->first();
@@ -197,9 +197,7 @@ class LineService
                 $data['status'] = true;
                 $data['message'] = $res['message'];
             } else throw new \Exception($res['message']);
-            DB::commit();
         } catch (\Exception $e) {
-            DB::rollBack();
             $data['status'] = true;
             $data['message'] = $e->getMessage();
         } finally {
@@ -222,10 +220,10 @@ class LineService
                 throw new \Exception('not successful');
             }
         } catch (\Exception $e) {
-            Log::info('error medthod line push message ใน line services');
+            Log::info('error method line push message ใน line services');
             Log::error($e->getMessage());
             $data['status'] = false;
-            $data['message'] = $e->getMessage();
+            $data['message'] = $e->getMessage() ?? 'error';
         } finally {
             return $data;
         }

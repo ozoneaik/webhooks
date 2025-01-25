@@ -13,50 +13,45 @@ class ChatHistoryService
 
     public function store($custId, $message, $sender, $conversationRef,$TOKEN) : ChatHistory
     {
-        $chatHistory = new ChatHistory();
-        $chatHistory->custId = $custId;
         switch ($message['type']) {
             case 'text':
-                $messages['content'] = $content;
+                $content = $message['text'];
                 break;
             case 'image':
-                $imageId = $content;
-                $messages['content'] = $this->lineService->handleMedia($imageId, $TOKEN);
+                $imageId = $message['id'];
+                $content = $this->lineService->handleMedia($imageId, $TOKEN);
                 break;
             case 'sticker':
-                $stickerId = $content;
+                $stickerId = $message['stickerId'];
                 $pathStart = 'https://stickershop.line-scdn.net/stickershop/v1/sticker/';
                 $pathEnd = '/iPhone/sticker.png';
                 $newPath = $pathStart . $stickerId . $pathEnd;
-                $messages['content'] = $newPath;
+                $content = $newPath;
                 break;
             case 'video':
-                $videoId = $content;
-//                $messages['content'] = $this->lineService->handleMedia($videoId, $TOKEN);
+                $videoId = $message['id'];
+                $content = $this->lineService->handleMedia($videoId, $TOKEN);
                 break;
             case 'location':
-                $messages['content'] = $E['message']['address'];
+                $lat = $message['latitude'];
+                $long = $message['longitude'];
+                $locationLink = 'พิกัดแผนที่ => https://www.google.com/maps?q=' . $lat . ',' . $long;
+                $content = $message['address'].'🗺️'.$locationLink;
                 break;
             case 'audio':
-                $audioId = $content;
-//                $messages['content'] = $this->lineService->handleMedia($audioId, $TOKEN);
+                $audioId = $message['id'];
+                $content = $this->lineService->handleMedia($audioId, $TOKEN);
                 break;
             default:
-                $messages['content'] = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
+                $content = 'ไม่สามารถตรวจสอบได้ว่าลูกค้าส่งอะไรเข้ามา';
         }
 
-        if ($contentType == 'image') {
-            $chatHistory->content = $content;
-        }elseif ($contentType == 'sticker') {
-            $chatHistory->content = $content;
-        }
-        else {
-            $chatHistory->content = $content;
-        }
-        $chatHistory->contentType = $contentType;
-        $chatHistory->sender = $sender;
-        $chatHistory->conversationRef = $conversationRef;
-        $chatHistory->save();
-        return $chatHistory;
+        return ChatHistory::query()->create([
+            'custId' => $custId,
+            'content' => $content,
+            'contentType' => $message['type'],
+            'sender' => $sender,
+            'conversationRef' => $conversationRef,
+        ]);
     }
 }
