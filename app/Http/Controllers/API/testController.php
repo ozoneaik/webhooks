@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActiveConversations;
 use App\Models\botMenu;
 use App\Models\ChatHistory;
+use App\Models\ChatRooms;
 use App\Models\Customers;
 use App\Models\Employee;
 use App\Models\Keyword;
@@ -277,6 +278,10 @@ BOT ทำการส่งเมนู 📃";
                         }
                         // ส่ง event ไปยัง pusher
                         $ac = ActiveConversations::query()->where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
+                        $from_roomId = ChatRooms::query()->where('roomId',$ac->from_roomId)->select('roomName')->first();
+                        $from_empCode = Employee::query()->where('empCode',$ac->from_empCode)->select('name')->first();
+                        $ac->from_empCode = $from_empCode->from_empCode;
+                        $ac->from_roomId = $from_roomId->from_roomName;
                         $chat = ChatHistory::query()
                             ->select(['id','content', 'contentType', 'sender', 'created_at'])
                             ->where('custId', $customer->custId)
