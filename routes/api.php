@@ -16,6 +16,6 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/line/webhook' ,[lineController::class,'lineWebHook']);
+Route::post('/line/webhook' ,[testController::class,'test']);
 Route::post('/line/test', [testController::class, 'test']);
 Route::post('/file-upload' ,[fileUploadController::class,'fileUpload']);

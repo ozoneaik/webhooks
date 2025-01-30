@@ -55,8 +55,8 @@ class testController extends Controller
         $customer = [];
         $events = $request->events;
         $TOKEN = '';
+        Log::channel('lineEvent')->info($request);
         try {
-
             //ตรวจสอบว่า events type เป็นอะไร
             if (count($events) > 0) {
                 foreach ($events as $event) {
@@ -80,7 +80,7 @@ class testController extends Controller
                                 if ($response->status() === 200) {
                                     $customer = $this->customerService->store(
                                         $event['source']['userId'],
-                                        $response['displayName'],
+                                        $response['displayName'] ?? ' ',
                                         "ทักมากไลน์ $token->description",
                                         $response['pictureUrl'] ?? ' ',
                                         $token->id
@@ -104,7 +104,7 @@ class testController extends Controller
                                     $acId = ActiveConversations::where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
                                     $this->chatHistoryService->store($customer->custId, $message, $customer->toJson(), $acId->id, $TOKEN);
                                 } elseif ($message['type'] === 'text') { // หากข้อความที่ทักเข้ามาเป็น text
-                                    $keyword = Keyword::where('name', 'LIKE', '%' . $message['text'] . '%')->first();
+                                    $keyword = Keyword::query()->where('name', 'LIKE', '%' . $message['text'] . '%')->first();
                                     if ($keyword) {
                                         if ($keyword->event === true) {
                                             // ให้เก็บแค่ chat พร้อมอ้างอิง AcId ก่อนหน้า
@@ -148,6 +148,7 @@ class testController extends Controller
                                     $newRate = Rates::query()->create([
                                         'custId' => $customer->custId,
                                         'latestRoomId' => $RATE->latestRoomId,
+                                        'rate' => 0,
                                         'status' => 'pending'
                                     ]);
                                     $newAc = ActiveConversations::query()->create([
@@ -277,11 +278,14 @@ BOT ทำการส่งเมนู 📃";
                             $this->lineService->sendMenu($customer->custId, $TOKEN);
                         }
                         // ส่ง event ไปยัง pusher
+                        $RATE = Rates::query()->where('custId',$customer->custId)->orderBy('id','desc')->first();
                         $ac = ActiveConversations::query()->where('rateRef', $RATE->id)->orderBy('id', 'desc')->first();
-                        $from_roomId = ChatRooms::query()->where('roomId',$ac->from_roomId)->select('roomName')->first();
-                        $from_empCode = Employee::query()->where('empCode',$ac->from_empCode)->select('name')->first();
-                        $ac->from_empCode = $from_empCode->from_empCode;
-                        $ac->from_roomId = $from_roomId->from_roomName;
+                        if ($ac->from_roomId && $ac->from_empCode){
+                            $from_roomId = ChatRooms::query()->where('roomId',$ac->from_roomId)->select('roomName')->first();
+                            $from_empCode = Employee::query()->where('empCode',$ac->from_empCode)->select('name')->first();
+                        }
+                        $ac->from_empCode = $from_empCode->from_empCode ?? '';
+                        $ac->from_roomId = $from_roomId->from_roomName?? '';
                         $chat = ChatHistory::query()
                             ->select(['id','content', 'contentType', 'sender', 'created_at'])
                             ->where('custId', $customer->custId)
@@ -300,7 +304,7 @@ BOT ทำการส่งเมนู 📃";
                 'message' => 'success',
             ]);
         } catch (\Exception $e) {
-            Log::channel('lineEvent')->info(sprintf(
+            Log::error(sprintf(
                 'Error: %s in %s on line %d',
                 $e->getMessage(),
                 $e->getFile(),
