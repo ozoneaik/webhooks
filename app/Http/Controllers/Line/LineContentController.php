@@ -15,7 +15,6 @@ class LineContentController extends Controller
     }
     public function getMessage ($m,$token): array
     {
-        Log::channel('lineEvent')->info($m);
         $message['contentType'] = $m['type'];
         if ($m['type'] === 'text'){
             $message['content'] = $m['text'];

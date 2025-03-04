@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Line;
 
 use App\Http\Controllers\Controller;
+use App\Services\PusherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class LineWebhookController extends Controller
 {
+    protected PusherService $PusherService;
     protected LineCustomerController $LineCustomerController;
     protected LineRateController $LineRateController;
     protected LinePendingController $LinePendingController;
@@ -24,9 +26,11 @@ class LineWebhookController extends Controller
         LineProgressController  $LineProgressController,
         LineSuccessController   $LineSuccessController,
         LineNewStatusController $LineNewStatusController,
-        LineContentController   $LineContentController
+        LineContentController   $LineContentController,
+        PusherService           $PusherService
     )
     {
+        $this->PusherService = $PusherService;
         $this->LineCustomerController = $LineCustomerController;
         $this->LineRateController = $LineRateController;
         $this->LinePendingController = $LinePendingController;
@@ -82,7 +86,8 @@ class LineWebhookController extends Controller
                         }
                     } else {
                         Log::channel('lineEvent')->info('ไม่พบ Rate ใน Database');
-                        $newRate = $this->LineNewStatusController->store($custId,$message);
+                        $data = $this->LineNewStatusController->store($custId, $message, $customer);
+                        $this->PusherService->sendNotification($data['rate'], $data['active'], $data['chatHistory'], $data['customer']);
                     }
                 }
             } else { // ไม่เจอ Event
