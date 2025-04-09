@@ -21,5 +21,5 @@ Route::get('/user', function (Request $request) {
 Route::post('/file-upload' ,[fileUploadController::class,'fileUpload']);
 
 // Production
-//Route::post('/line/webhook' ,[testController::class,'test']);
-Route::post('/line/webhook' ,[LineWebhookController::class,'webhook']);
+Route::post('/line/webhook' ,[testController::class,'test']);
+// Route::post('/line/webhook' ,[LineWebhookController::class,'webhook']);

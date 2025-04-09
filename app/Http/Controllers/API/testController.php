@@ -19,7 +19,6 @@ use App\Services\LineService;
 use App\Services\PusherService;
 use App\Services\RateService;
 use Carbon\Carbon;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -51,7 +50,7 @@ class testController extends Controller
         $this->pusherService = $pusherService;
     }
 
-    public function test(Request $request): JsonResponse
+    public function test(Request $request)
     {
         $customer = [];
         $events = $request->events;
@@ -82,7 +81,7 @@ class testController extends Controller
                                     $customer = $this->customerService->store(
                                         $event['source']['userId'],
                                         $response['displayName'] ?? ' ',
-                                        "ทักมากไลน์ $token->description",
+                                        "ทักมาจากไลน์ $token->description",
                                         $response['pictureUrl'] ?? ' ',
                                         $token->id
                                     );
