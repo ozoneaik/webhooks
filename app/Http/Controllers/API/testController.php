@@ -172,13 +172,14 @@ class testController extends Controller
                                         ->where('rates.status', '=', 'pending') // เงื่อนไข where สำหรับ rates.status
                                         ->orderBy('active_conversations.created_at', 'asc')
                                         ->get();
-                                    $countProgress = DB::connection('call_center_database')
-                                        ->table('rates')
-                                        ->select('id')
-                                        ->where('status', 'progress')
-                                        ->where('latestRoomId', $RATE->latestRoomId)
-                                        ->count();
-                                    $count = $countProgress + 1;
+                                    // $countProgress = DB::connection('call_center_database')
+                                    //     ->table('rates')
+                                    //     ->select('id')
+                                    //     ->where('status', 'progress')
+                                    //     ->where('latestRoomId', $RATE->latestRoomId)
+                                    //     ->count();
+                                    // $count = $countProgress + 1;
+                                    $count = 1;
                                     foreach ($queueChat as $key => $value) {
                                         if ($value->custId === $customer->custId) break;
                                         else $count++;
